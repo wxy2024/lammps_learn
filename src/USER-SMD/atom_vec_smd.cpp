@@ -50,7 +50,7 @@ AtomVecSMD::AtomVecSMD(LAMMPS *lmp) :
 
 	comm_x_only = 0;
 	comm_f_only = 0;
-	size_forward = 7; // variables that are changed by time integration
+	size_forward = 7; // variables that are changed by time integration因时间积分而改变的变量
 	size_reverse = 4; // f[3] + de
 	size_border = 34; // Total size of the border (40) - ( size of v and vest: 6);
 	size_velocity = 6; // v + vest
@@ -90,7 +90,7 @@ void AtomVecSMD::init() {
 
 /* ----------------------------------------------------------------------
  grow atom arrays
- n = 0 grows arrays by a chunk
+ n = 0 grows arrays by a chunk（块）
  n > 0 allocates arrays to size n
  ------------------------------------------------------------------------- */
 
@@ -138,7 +138,7 @@ void AtomVecSMD::grow(int n) {
 }
 
 /* ----------------------------------------------------------------------
- reset local array ptrs
+ reset local array ptrs 更新
  ------------------------------------------------------------------------- */
 
 void AtomVecSMD::grow_reset() {
@@ -170,7 +170,7 @@ void AtomVecSMD::grow_reset() {
 }
 
 /* ----------------------------------------------------------------------
- copy atom I info to atom J
+ copy atom I info to atom J 复制原子参数
  ------------------------------------------------------------------------- */
 
 void AtomVecSMD::copy(int i, int j, int delflag) {
@@ -230,7 +230,12 @@ int AtomVecSMD::pack_comm(int n, int *list, double *buf, int pbc_flag, int *pbc)
 
 int AtomVecSMD::pack_comm_vel(int n, int *list, double *buf, int pbc_flag, int *pbc) {
 	// communicate quantities to ghosts, which are changed by time-integration AND are required on ghost atoms.
-
+	//"ghost atoms" 指的是超越当前处理节点（compute node）的边界但仍然对模拟具有影响的原子。
+	//这些原子在模拟中是不可见的（即不会计入物理性质的计算），但它们的存在是为了确保在模拟中正确处理了与其相邻的原子之间的相互作用。
+	//在分子动力学模拟中，通常将整个系统分割成多个区域，每个区域都由不同的计算节点进行处理。
+	//当原子移动到一个区域的边界时，它可能会与该区域外的原子产生相互作用。
+	//为了处理这种情况，LAMMPS 会在每个计算节点周围创建一组 "ghost atoms"，这些原子是边界上的虚拟副本，用于在模拟中处理跨边界的相互作用。
+	
 	//no need to pack stress or defgrad information here, as these quantities are not required for ghost atoms.
 	// Inside pair_style tlsph, these quantities are computed and communicated to ghosts.
 
@@ -1286,7 +1291,7 @@ int AtomVecSMD::write_vel_hybrid(FILE *fp, double *buf) {
  return # of bytes of allocated memory
  ------------------------------------------------------------------------- */
 
-bigint AtomVecSMD::memory_usage() {
+bigint AtomVecSMD::memory_usage() {//计算使用的内存总量
 	bigint bytes = 0;
 
 	if (atom->memcheck("tag"))

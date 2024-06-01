@@ -15,7 +15,7 @@
    Contributing author: A. de Vaucorbeil, alban.devaucorbeil@monash.edu
                         Copyright (C) 2018
 ------------------------------------------------------------------------- */
-
+//从原子中传入初始损伤值
 #include <string.h>
 #include "compute_smd_damage_init.h"
 #include "atom.h"
@@ -29,7 +29,7 @@
 using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
-
+//构造函数
 ComputeSMDDamageInit::ComputeSMDDamageInit(LAMMPS *lmp, int narg, char **arg) :
   Compute(lmp, narg, arg)
 {
@@ -77,13 +77,13 @@ void ComputeSMDDamageInit::compute_peratom()
     vector_atom = damage_init_vector;
   }
 
-  double *damage_init = atom->damage_init;
+  double *damage_init = atom->damage_init;//原子中的
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
 
     for (int i = 0; i < nlocal; i++) {
       if (mask[i] & groupbit) {
-              damage_init_vector[i] = damage_init[i];//初始损伤程度？？？
+              damage_init_vector[i] = damage_init[i];//初始损伤值
       }
       else {
               damage_init_vector[i] = 0.0;

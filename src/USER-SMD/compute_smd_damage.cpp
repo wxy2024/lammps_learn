@@ -22,7 +22,7 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-
+//从原子中传入损伤数组
 #include <string.h>
 #include "compute_smd_damage.h"
 #include "atom.h"

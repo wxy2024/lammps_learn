@@ -21,7 +21,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//从原子中传入dt，不过dt是啥？
 #include <string.h>
 #include "compute_smd_tlsph_dt.h"
 #include "atom.h"

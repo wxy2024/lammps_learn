@@ -22,7 +22,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//从原子中传入hourglass_error
 #include <string.h>
 #include "compute_smd_hourglass_error.h"
 #include "atom.h"
@@ -37,7 +37,7 @@
 using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
-
+//构造函数
 ComputeSMDHourglassError::ComputeSMDHourglassError(LAMMPS *lmp, int narg, char **arg) :
                 Compute(lmp, narg, arg) {
         if (narg != 3)

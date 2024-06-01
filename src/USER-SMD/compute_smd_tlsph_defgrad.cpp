@@ -21,7 +21,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//从原子中传入变形梯度，满足条件的更新
 #include <string.h>
 #include "compute_smd_tlsph_defgrad.h"
 #include "atom.h"
@@ -77,7 +77,7 @@ void ComputeSMDTLSPHDefgrad::init() {//检查合法性
 
 void ComputeSMDTLSPHDefgrad::compute_peratom() {//计算每个原子的变形梯度
 	double **defgrad = atom->smd_data_9;//defgrad存储梯度
-	Matrix3d F;//声明了一个名为 F 的 3x3 矩阵，用于计算原子的变形
+	Matrix3d F;//变形梯度
 	invoked_peratom = update->ntimestep;
 
 	// grow vector array if necessary
@@ -98,6 +98,7 @@ void ComputeSMDTLSPHDefgrad::compute_peratom() {//计算每个原子的变形梯
 	int *mask = atom->mask;
 	int nlocal = atom->nlocal;
 
+	//下面这段代码就是把所有满足条件原子的变形梯度传入，然后乘以增量（更新），然后又把所有原子更新后的变形梯度放到defgradVector里
 	for (int i = 0; i < nlocal; i++) {
 		if (mask[i] & groupbit) {
 			F(0, 0) = defgrad[i][0];
@@ -120,7 +121,7 @@ void ComputeSMDTLSPHDefgrad::compute_peratom() {//计算每个原子的变形梯
 			defgradVector[i][6] = F(2, 0);
 			defgradVector[i][7] = F(2, 1);
 			defgradVector[i][8] = F(2, 2);
-			defgradVector[i][9] = F.determinant();
+			defgradVector[i][9] = F.determinant();//determinant() 方法用于计算张量或矩阵的行列式值
 		} else {
 			defgradVector[i][0] = 1.0;//将变形梯度设为单位矩阵，保证原子没有变形
 			defgradVector[i][1] = 0.0;

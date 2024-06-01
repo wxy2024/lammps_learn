@@ -21,7 +21,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//从原子中传入密度
 #include <string.h>
 #include "compute_smd_rho.h"
 #include "atom.h"

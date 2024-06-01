@@ -22,7 +22,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//对于每一个原子更新它邻居粒子的数量？
 #include <string.h>
 #include "compute_smd_tlsph_num_neighs.h"
 #include "atom.h"

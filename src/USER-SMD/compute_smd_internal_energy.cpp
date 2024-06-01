@@ -22,7 +22,7 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-
+//从原子中传入内能
 #include <string.h>
 #include "compute_smd_internal_energy.h"
 #include "atom.h"
@@ -84,7 +84,7 @@ void ComputeSMDInternalEnergy::compute_peratom()
     vector_atom = internal_energy_vector;
   }
 
-  double *e = atom->e;
+  double *e = atom->e;//传入原子中能量数组
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
 

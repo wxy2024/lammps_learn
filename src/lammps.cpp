@@ -62,7 +62,7 @@ static void print_style(FILE *fp, const char *str, int &pos);
    input is allocated at end after MPI info is setup
 ------------------------------------------------------------------------- */
 
-LAMMPS::LAMMPS(int narg, char **arg, MPI_Comm communicator)
+LAMMPS::LAMMPS(int narg, char **arg, MPI_Comm communicator)  //构造函数
 {
   memory = new Memory(this);
   error = new Error(this);
@@ -539,7 +539,7 @@ LAMMPS::LAMMPS(int narg, char **arg, MPI_Comm communicator)
    delete fundamental classes
 ------------------------------------------------------------------------- */
 
-LAMMPS::~LAMMPS()
+LAMMPS::~LAMMPS()//析构函数
 {
   const int me = comm->me;
 
@@ -611,7 +611,7 @@ void LAMMPS::create()
   // Comm class must be created before Atom class
   // so that nthreads is defined when create_avec invokes grow()
 
-  if (kokkos) comm = new CommKokkos(this);
+  if (kokkos) comm = new CommKokkos(this);  //kokkos和comm都是啥东西
   else comm = new CommBrick(this);
 
   if (kokkos) neighbor = new NeighborKokkos(this);
@@ -657,13 +657,13 @@ void LAMMPS::create()
 
 void LAMMPS::post_create()
 {
-  // default package command triggered by "-k on"
+  // default package command triggered by "-k on"        由“-k on”触发的默认包命令
 
   if (kokkos && kokkos->kokkos_exists) input->one("package kokkos");
 
-  // suffix will always be set if suffix_enable = 1
-  // check that KOKKOS package classes were instantiated
-  // check that GPU, INTEL, USER-OMP fixes were compiled with LAMMPS
+  // suffix（后缀） will always be set if suffix_enable = 1
+  // check that KOKKOS package classes were instantiated（实例化）
+  // check that GPU, INTEL, USER-OMP fixes were compiled（编译） with LAMMPS
 
   if (!suffix_enable) return;
 
@@ -706,7 +706,7 @@ void LAMMPS::post_create()
 
 /* ----------------------------------------------------------------------
    initialize top-level classes
-   do not initialize Timer class, other classes like Run() do that explicitly
+   do not initialize Timer class, other classes like Run() do that explicitly（明确地）
 ------------------------------------------------------------------------- */
 
 void LAMMPS::init()
@@ -778,10 +778,10 @@ void LAMMPS::help()
   FILE *fp = screen;
   const char *pager = NULL;
 
-  // if output is "stdout", use a pipe to a pager for paged output.
+  // if output is "stdout", use a pipe to a pager for paged output.使用管道连接到分页输出器。
   // this will avoid the most important help text to rush past the
-  // user. scrollback buffers are often not large enough. this is most
-  // beneficial to windows users, who are not used to command line.
+  // user. scrollback buffers are often not large enough.回卷缓冲区往往不够大。 this is most
+  // beneficial to windows users, who are not used to command line.不习惯使用命令行的人。
 
   if (fp == stdout) {
     pager = getenv("PAGER");
@@ -943,8 +943,8 @@ void LAMMPS::help()
 }
 
 /* ----------------------------------------------------------------------
-   print style names in columns
-   skip any style that starts with upper-case letter, since internal
+   print style names in columns在列中打印样式名称
+   skip any style that starts with upper-case letter跳过任何以大写字母开头的样式, since internal
 ------------------------------------------------------------------------- */
 
 void print_style(FILE *fp, const char *str, int &pos)

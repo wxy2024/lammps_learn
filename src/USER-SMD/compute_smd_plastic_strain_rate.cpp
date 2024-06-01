@@ -22,7 +22,7 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-
+//从原子中传入塑性应变率
 #include <string.h>
 #include "compute_smd_plastic_strain_rate.h"
 #include "atom.h"

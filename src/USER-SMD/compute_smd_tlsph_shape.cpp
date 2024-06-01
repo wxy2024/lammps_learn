@@ -102,9 +102,9 @@ void ComputeSmdTlsphShape::compute_peratom() {
 
         int *mask = atom->mask;
         int nlocal = atom->nlocal;
-        Matrix3d E, eye;
-        eye.setIdentity();
-        Quaterniond q;
+        Matrix3d E, eye;//E是应变
+        eye.setIdentity();//初始化单位矩阵
+        Quaterniond q;//定义四元数对象
 
         for (int i = 0; i < nlocal; i++) {
                 if (mask[i] & groupbit) {
@@ -118,7 +118,7 @@ void ComputeSmdTlsphShape::compute_peratom() {
                         strainVector[i][3] = q.w();
                         strainVector[i][4] = q.x();
                         strainVector[i][5] = q.y();
-                        strainVector[i][6] = q.z();//剪切应变张量
+                        strainVector[i][6] = q.z();//这一部分用于表示剪切应变张量
                 } else {
                         for (int j = 0; j < size_peratom_cols; j++) {
                                 strainVector[i][j] = 0.0;

@@ -22,7 +22,7 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-
+//传入/更新接触半径
 #include <string.h>
 #include "compute_smd_contact_radius.h"
 #include "atom.h"
@@ -36,7 +36,7 @@
 using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
-
+//构造函数
 ComputeSMDContactRadius::ComputeSMDContactRadius(LAMMPS *lmp, int narg, char **arg) :
   Compute(lmp, narg, arg)
 {
@@ -51,14 +51,14 @@ ComputeSMDContactRadius::ComputeSMDContactRadius(LAMMPS *lmp, int narg, char **a
 }
 
 /* ---------------------------------------------------------------------- */
-
+//析构函数
 ComputeSMDContactRadius::~ComputeSMDContactRadius()
 {
   memory->sfree(contact_radius_vector);
 }
 
 /* ---------------------------------------------------------------------- */
-
+//初始化
 void ComputeSMDContactRadius::init()
 {
 
@@ -71,12 +71,12 @@ void ComputeSMDContactRadius::init()
 
 /* ---------------------------------------------------------------------- */
 
-void ComputeSMDContactRadius::compute_peratom()
+void ComputeSMDContactRadius::compute_peratom()//以原子为单位计算，而不是以整个系统
 {
   invoked_peratom = update->ntimestep;
-
+  //被调用的原子
   // grow rhoVector array if necessary
-
+  //看有没有需要扩充空间
   if (atom->nmax > nmax) {
     memory->sfree(contact_radius_vector);
     nmax = atom->nmax;
@@ -101,7 +101,7 @@ void ComputeSMDContactRadius::compute_peratom()
 /* ----------------------------------------------------------------------
    memory usage of local atom-based array
 ------------------------------------------------------------------------- */
-
+//计算内存使用量
 double ComputeSMDContactRadius::memory_usage()
 {
   double bytes = nmax * sizeof(double);

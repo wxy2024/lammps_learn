@@ -21,17 +21,17 @@ namespace LAMMPS_NS {
 class LAMMPS {
  public:
                                  // ptrs to fundamental LAMMPS classes
-  class Memory *memory;          // memory allocation functions
+  class Memory *memory;          // memory allocation functions内存调用函数
   class Error *error;            // error handling
   class Universe *universe;      // universe of processors
-  class Input *input;            // input script processing
+  class Input *input;            // input script processing输入脚本程序
                                  // ptrs to top-level LAMMPS-specific classes
   class Atom *atom;              // atom-based quantities
-  class Update *update;          // integrators/minimizers
-  class Neighbor *neighbor;      // neighbor lists
-  class Comm *comm;              // inter-processor communication
-  class Domain *domain;          // simulation box
-  class Force *force;            // inter-particle forces
+  class Update *update;          // integrators/minimizers集成器/最小化器
+  class Neighbor *neighbor;      // neighbor lists邻居列表
+  class Comm *comm;              // inter-processor communication处理器之间的通信
+  class Domain *domain;          // simulation box模拟盒子
+  class Force *force;            // inter-particle forces粒子间相互作用力
   class Modify *modify;          // fixes and computes
   class Group *group;            // groups of atoms
   class Output *output;          // thermo/dump/restart
@@ -42,16 +42,16 @@ class LAMMPS {
   FILE *screen;                  // screen output
   FILE *logfile;                 // logfile
 
-  double initclock;              // wall clock at instantiation
+  double initclock;              // wall clock at instantiation 实例化时的挂钟
 
-  char *suffix,*suffix2;         // suffixes to add to input script style names
+  char *suffix,*suffix2;         // suffixes to add to input script style names为输入脚本样式名称添加的后缀
   int suffix_enable;             // 1 if suffixes are enabled, 0 if disabled
   char *exename;                 // pointer to argv[0]
   char ***packargs;              // arguments for cmdline package commands
   int num_package;               // number of cmdline package commands
   int cite_enable;               // 1 if generating log.cite, 0 if disabled
 
-  class KokkosLMP *kokkos;       // KOKKOS accelerator class
+  class KokkosLMP *kokkos;       // KOKKOS accelerator class 加速器类
   class AtomKokkos *atomKK;      // KOKKOS version of Atom class
   class MemoryKokkos *memoryKK;  // KOKKOS version of Memory class
 
