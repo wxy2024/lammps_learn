@@ -22,7 +22,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//传入邻居粒子的数量？
 #include <string.h>
 #include "compute_smd_ulsph_num_neighs.h"
 #include "atom.h"

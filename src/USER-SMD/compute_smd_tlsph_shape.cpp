@@ -21,7 +21,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//计算应变，这里面有点复杂，没找到对应公式
 #include <string.h>
 #include "compute_smd_tlsph_shape.h"
 #include "atom.h"

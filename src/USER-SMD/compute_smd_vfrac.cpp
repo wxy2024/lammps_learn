@@ -15,7 +15,7 @@
    Contributing author: A. de Vaucorbeil, alban.devaucorbeil@monash.edu
                         Copyright (C) 2018
 ------------------------------------------------------------------------- */
-
+//从原子中传入vfrac，是啥？
 #include <string.h>
 #include "compute_smd_vfrac.h"
 #include "atom.h"

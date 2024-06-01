@@ -22,7 +22,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//更新应变
 #include <string.h>
 #include "compute_smd_tlsph_strain.h"
 #include "atom.h"
@@ -92,6 +92,7 @@ void ComputeSMDTLSPHstrain::compute_peratom() {
 
         // copy data to output array
         int itmp = 0;
+        //变形梯度的增量
         Matrix3d *Fincr = (Matrix3d *) force->pair->extract("smd/tlsph/Fincr_ptr", itmp);
         if (Fincr == NULL) {
                 error->all(FLERR, "compute smd/tlsph_strain failed to access Fincr array");
@@ -115,11 +116,11 @@ void ComputeSMDTLSPHstrain::compute_peratom() {
                         F0(2, 0) = defgrad0[i][6];
                         F0(2, 1) = defgrad0[i][7];
                         F0(2, 2) = defgrad0[i][8];
-
+                        //计算当前总的变形梯度
                         // compute current total deformation gradient
                         Ftotal = F0 * Fincr[i]; // this is the total deformation gradient: reference deformation times incremental deformation
                         
-
+                        //计算应变E，把更新之后的应变存储到strainVector里，还是由二维变成一维
                         E = 0.5 * (Ftotal.transpose() * Ftotal - eye); // Green-Lagrange strain
                         strainVector[i][0] = E(0, 0);//全拉格朗日形变张量
                         strainVector[i][1] = E(1, 1);

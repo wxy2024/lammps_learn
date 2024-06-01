@@ -22,7 +22,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//从原子中传入smd_data_9作为outputVector
 #include <string.h>
 #include "compute_smd_triangle_mesh_vertices.h"
 #include "atom.h"
@@ -93,9 +93,9 @@ void ComputeSMDTriangleVertices::compute_peratom() {
     }
 
     /*
-     * triangle vertices are stored using the smd_data_9 array ...
+     * triangle vertices are stored using the smd_data_9 array ...三角形顶点使用 smd_data_9 数组存储
      * this is a hack but ok for now as I do not have to create additional storage space
-     * all triangle particles have molecule id >= 65535
+     * all triangle particles have molecule id >= 65535 所有三角形粒子的分子id >= 65535
      */
 
     int *mask = atom->mask;

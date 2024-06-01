@@ -22,7 +22,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//传入应变率D
 #include <string.h>
 #include "compute_smd_tlsph_strain_rate.h"
 #include "atom.h"
@@ -86,6 +86,7 @@ void ComputeSMDTLSPHStrainRate::compute_peratom() {
 
         int itmp = 0;
         Matrix3d *D = (Matrix3d *) force->pair->extract("smd/tlsph/strain_rate_ptr", itmp);
+        //D是应变率，论文的代码里面有
         if (D == NULL) {
                 error->all(FLERR,
                                 "compute smd/tlsph_strain_rate could not access strain rate. Are the matching pair styles present?");
@@ -102,6 +103,7 @@ void ComputeSMDTLSPHStrainRate::compute_peratom() {
                 strain_rate_array[i][4] = D[i](0, 2); // xz
                 strain_rate_array[i][5] = D[i](1, 2); // yz
                 //把D的上三角矩阵存储到strain_rate_array里
+                //把原来的二维矩阵变成了一维的
         }
 }
 

@@ -21,7 +21,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//计算并存储应力
 #include <string.h>
 #include "compute_smd_tlsph_stress.h"
 #include "atom.h"
@@ -97,6 +97,7 @@ void ComputeSMDTLSPHStress::compute_peratom() {
 
         int itmp = 0;
         Matrix3d *T = (Matrix3d *) force->pair->extract("smd/tlsph/stressTensor_ptr", itmp);
+        //T可能是指应力张量
         if (T == NULL) {
                 error->all(FLERR, "compute smd/tlsph_stress could not access stress tensors. Are the matching pair styles present?");
         }
@@ -106,14 +107,16 @@ void ComputeSMDTLSPHStress::compute_peratom() {
         for (int i = 0; i < nlocal; i++) {
                 if (mask[i] & groupbit) {
                         stress_deviator = Deviator(T[i]);
+                        //Deviator通常是指张量的偏差部分，也称为偏应变张量（deviatoric strain）或偏应力张量（deviatoric stress）
                         von_mises_stress = sqrt(3. / 2.) * stress_deviator.norm();//2-2
+                        //上面这句根据 von Mises 应力的定义计算了von Mises 应力
                         stress_array[i][0] = T[i](0, 0); // xx
                         stress_array[i][1] = T[i](1, 1); // yy
                         stress_array[i][2] = T[i](2, 2); // zz
                         stress_array[i][3] = T[i](0, 1); // xy
                         stress_array[i][4] = T[i](0, 2); // xz
                         stress_array[i][5] = T[i](1, 2); // yz
-                        stress_array[i][6] = von_mises_stress;
+                        stress_array[i][6] = von_mises_stress;//把应力由二维变为一维存储，仅存储上三角矩阵
                 } else {
                         for (int j = 0; j < size_peratom_cols; j++) {
                                 stress_array[i][j] = 0.0;
