@@ -210,12 +210,12 @@ void FixSMD_TLSPH_ReferenceConfiguration::pre_exchange() {
 
 			if (mask[i] & groupbit) {
 
-				// re-set x0 coordinates
+				// re-set x0 coordinates 重新设置参考坐标？
 				x0[i][0] = x[i][0];
 				x0[i][1] = x[i][1];
 				x0[i][2] = x[i][2];
 
-				// re-set deformation gradient
+				// re-set deformation gradient 重新设置变形梯度
 				defgrad[i][0] = 1.0;
 				defgrad[i][1] = 0.0;
 				defgrad[i][2] = 0.0;
@@ -226,13 +226,15 @@ void FixSMD_TLSPH_ReferenceConfiguration::pre_exchange() {
 				defgrad[i][7] = 0.0;
 				defgrad[i][8] = 1.0;
 				/*
-				 * Adjust particle volume as the reference configuration is changed.
+				 * Adjust particle volume as the reference configuration is changed.在改变基准配置时调整粒子体积。
 				 * We safeguard against excessive deformations by limiting the adjustment range
 				 * to the intervale J \in [0.9..1.1]
+				 * 为了防止过度变形，我们将调整范围限制为
+				 * 到 [0.9..1.1] 的中间值 J
 				 */
-				vfrac[i] = rmass[i] / rho[i];
+				vfrac[i] = rmass[i] / rho[i];//体积等于质量除以密度
 //
-				if (nn[i] < 15) {
+				if (nn[i] < 15) {//可能是如果邻居粒子过少，则增大接触半径的意思
 					radius[i] *= 1.2;
 				} // else //{
 				  //	radius[i] *= pow(J, 1.0 / domain->dimension);
@@ -284,12 +286,13 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	firstneigh = list->firstneigh;
 	Vector3d x0i, x0j;
 
-	// zero npartner for all current atoms
+	// zero npartner for all current atoms当前所有原子的 npartner 为零
 	for (i = 0; i < nlocal; i++){
 	  npartner[i] = 0;
 	  n_lagrange_partner[i] = 0;
 	}
 
+	//这个循环主要计算了每个粒子的邻居粒子数量，并存储在npartner，n_lagrange_partner中
 	for (ii = 0; ii < inum; ii++) {
 		i = ilist[ii];
 		jlist = firstneigh[i];
@@ -310,10 +313,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 			r = dx.norm();
 			h = radius[i] + radius[j];
 
-			if (r <= h) {
+			if (r <= h) {//满足这一条件，说明i和j是邻居粒子
 				npartner[i]++;
 				n_lagrange_partner[i]++;
-				if (j < nlocal) {
+				if (j < nlocal) {//如果j满足这一条件，则把j的邻居粒子数量也增加
 					npartner[j]++;
 					n_lagrange_partner[j]++;
 				}
@@ -322,10 +325,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	}
 
 	maxpartner = 0;
-	for (i = 0; i < nlocal; i++)
+	for (i = 0; i < nlocal; i++)//这个循环用于求出最多的邻居粒子是多少
 		maxpartner = MAX(maxpartner, npartner[i]);
 	int maxall;
-	MPI_Allreduce(&maxpartner, &maxall, 1, MPI_INT, MPI_MAX, world);
+	MPI_Allreduce(&maxpartner, &maxall, 1, MPI_INT, MPI_MAX, world);//这个函数不知道是什么意思
 	maxpartner = maxall;
 
 	grow_arrays(nmax);
@@ -343,7 +346,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 			partnerdx[i][jj].setZero();
 		}
 	}
-
+	//下面这个循环没太看懂
 	for (ii = 0; ii < inum; ii++) {
 		i = ilist[ii];
 		jlist = firstneigh[i];
@@ -796,9 +799,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::unpack_forward_comm(int n, int first, 
 }
 
 /* ----------------------------------------------------------------------
- routine for excluding bonds across a hardcoded slit crack
+ routine for excluding bonds across a hardcoded slit crack例程，用于排除硬编码狭缝裂缝中的键
  Note that everything is scaled by lattice constant l0 to avoid
- numerical inaccuracies.
+ numerical inaccuracies.请注意，为避免数值误差，所有数据均按晶格常数 l0 缩放。
+ 
  ------------------------------------------------------------------------- */
 
 bool FixSMD_TLSPH_ReferenceConfiguration::crack_exclude(int i, int j) {

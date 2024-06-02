@@ -96,7 +96,7 @@ void FixSMDTlsphDtReset::setup(int vflag) {
 
 void FixSMDTlsphDtReset::initial_integrate(int vflag) {
 
-	t_elapsed += update->dt;
+	t_elapsed += update->dt;//累计时间
 	update->update_time();
 	// printf("in adjust_dt: dt = %.10e, t_elapsed = %.10e\n", update->dt, t_elapsed);
 }
@@ -108,7 +108,7 @@ void FixSMDTlsphDtReset::end_of_step() {
 	int itmp = 0;
 
 	/*
-	 * extract minimum CFL timestep from TLSPH and ULSPH pair styles
+	 * extract minimum CFL timestep from TLSPH and ULSPH pair styles从 TLSPH 和 ULSPH 对样式中提取最小 CFL 时间步长
 	 */
 
 	double *dtCFL_TLSPH = (double *) force->pair->extract("smd/tlsph/dtCFL_ptr", itmp);
@@ -212,8 +212,8 @@ void FixSMDTlsphDtReset::end_of_step() {
 //		}
 //	}
 
-	dtmin *= safety_factor; // apply safety factor
-	// Limit the increase to 0.5% of previous time step:
+	dtmin *= safety_factor; // apply safety factor应用安全系数
+	// Limit the increase to 0.5% of previous time step:将增幅限制在上一时间步长的 0.5%：
 
 	dtmin = MIN(dtmin, 1.005 * update->dt);
 	MPI_Allreduce(&dtmin, &dt, 1, MPI_DOUBLE, MPI_MIN, world);
@@ -239,7 +239,7 @@ double FixSMDTlsphDtReset::compute_scalar() {
 }
 
 /* ----------------------------------------------------------------------
- pack entire state of Fix into one write
+ pack entire state of Fix into one write将整个固定状态打包成一个文件
  ------------------------------------------------------------------------- */
 
 void FixSMDTlsphDtReset::write_restart(FILE *fp) {

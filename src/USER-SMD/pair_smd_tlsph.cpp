@@ -57,8 +57,8 @@ using namespace LAMMPS_NS;
 using namespace SMD_Math;
 
 #define JAUMANN false
-#define DETF_MIN 0.002 // maximum compression deformation allow
-#define DETF_MAX 200.0 // maximum tension deformation allowed
+#define DETF_MIN 0.002 // maximum compression deformation allow最大压缩变形量
+#define DETF_MAX 200.0 // maximum tension deformation allowed允许的最大拉伸变形
 #define TLSPH_DEBUG 0
 #define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
 #define BUFEXTRA 1000

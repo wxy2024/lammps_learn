@@ -111,7 +111,7 @@ void PairHertz::compute(int eflag, int vflag) {
         numneigh = list->numneigh;
         firstneigh = list->firstneigh;
 
-        stable_time_increment = 1.0e22;
+        stable_time_increment = 1.0e22;//时间步长
 
         // loop over neighbors of my atoms
         for (ii = 0; ii < inum; ii++) {
@@ -130,11 +130,11 @@ void PairHertz::compute(int eflag, int vflag) {
 
                         jtype = type[j];
 
-                        delx = xtmp - x[j][0];
+                        delx = xtmp - x[j][0];//计算位移
                         dely = ytmp - x[j][1];
                         delz = ztmp - x[j][2];
 
-                        rsq = delx * delx + dely * dely + delz * delz;
+                        rsq = delx * delx + dely * dely + delz * delz;//距离的平方
 
                         rj = scale * radius[j];
                         rcut = ri + rj;
@@ -145,7 +145,9 @@ void PairHertz::compute(int eflag, int vflag) {
                                 /*
                                  * self contact option:
                                  * if pair of particles was initially close enough to interact via a bulk continuum mechanism (e.g. SPH), exclude pair from contact forces.
+                                 * 如果粒子对最初足够接近，可以通过体连续机制（如 SPH）相互作用，则将粒子对排除在接触力之外。
                                  * this approach should work well if no updates of the reference configuration are performed.
+                                 * 如果不对参考配置进行更新，这种方法应该会很有效。
                                  */
 
                                 if (itype == jtype) {
@@ -168,7 +170,7 @@ void PairHertz::compute(int eflag, int vflag) {
 
                                 r = sqrt(rsq);
                                 //printf("hertz interaction, r=%f, cut=%f, h=%f\n", r, rcut, sqrt(rSq0));
-
+                                //赫兹相互作用
                                 // Hertzian short-range forces
                                 delta = rcut - r; // overlap distance
                                 r_geom = ri * rj / rcut;
@@ -179,7 +181,7 @@ void PairHertz::compute(int eflag, int vflag) {
 
                                 stable_time_increment = MIN(stable_time_increment, dt_crit);
                                 if (r > 2.0e-16) {
-                                        fpair /= r; // divide by r and multiply with non-normalized distance vector
+                                        fpair /= r; // divide by r and multiply with non-normalized distance vector除以 r，再乘以非标准化距离向量
                                 } else {
                                         fpair = 0.0;
                                 }
