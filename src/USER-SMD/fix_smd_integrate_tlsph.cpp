@@ -21,7 +21,8 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+/*该修正为根据Total-Lagrangian SPH pair style进行相互作用的粒子执行显式时间积分。
+limit_velocity关键字将控制速度，如果速度超过此速度限制，则将速度向量的范数缩放到max_vel。*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

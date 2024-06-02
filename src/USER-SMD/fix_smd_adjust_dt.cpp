@@ -21,7 +21,11 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+/*该修正计算一个新的稳定时间步长，用于在SMD时间积分器中使用。
 
+稳定时间步长基于多个条件。对于SPH pair styles，会评估一个CFL准则（Courant, Friedrichs & Lewy, 1928），该准则确定声速在一个时间步长内不能传播得比粒子之间的典型间距更远，以确保不会丢失任何信息。对于接触对样式，会对成对势能进行线性分析，确定一个稳定的最大时间步长。
+
+该修正查询定义了此修正的组中所有粒子中的最小稳定时间增量。额外的安全系数 s_fact 应用于时间增量。*/
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

@@ -21,7 +21,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+////定义一个计算，提供定义了修正的粒子组的每个粒子的体积和总体积。
 #include <string.h>
 #include "compute_smd_vol.h"
 #include "atom.h"

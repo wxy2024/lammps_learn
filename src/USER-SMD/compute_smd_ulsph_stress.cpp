@@ -21,7 +21,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//定义一个计算，用于输出柯西应力张量。
 #include <string.h>
 #include "compute_smd_ulsph_stress.h"
 #include "atom.h"

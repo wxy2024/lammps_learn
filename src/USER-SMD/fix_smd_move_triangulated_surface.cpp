@@ -21,7 +21,13 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+/*这个修复只适用于通过fix smd/wall_surface从.STL文件中读取的刚性表面。它每个时间步更新组中粒子的位置和速度，而不考虑粒子上的力。因此，在模拟过程中可以沿着简单的轨迹移动刚性表面。
 
+LINEAR样式：以指定的恒定速度向量V = (Vx，Vy，Vz)移动粒子。该样式还将每个粒子的速度设置为V = (Vx，Vy，Vz)。
+
+WIGGLE样式：以振荡的方式移动粒子。粒子沿着恒定速度（vx，vy，vz）移动，直到达到最大位移max_travel。然后，速度矢量被反转。这个过程重复进行。
+
+ROTATE样式：围绕通过点P = (Px，Py，Pz)的旋转轴R = (Rx，Ry，Rz)旋转粒子。旋转周期也被指定。该样式还将每个粒子的速度设置为(omega叉乘Rperp)，其中omega是其围绕旋转轴的角速度，而Rperp是从旋转轴到粒子的垂直向量。*/
 #include <stdio.h>
 #include <string.h>
 #include "fix_smd_move_triangulated_surface.h"

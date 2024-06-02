@@ -21,7 +21,11 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+/*修复程序对于与更新的Lagrangian SPH pair style相互作用的粒子执行显式时间积分。
 
+adjust_radius关键字激活了对每个粒子的SPH平滑核半径的动态调整，以确保每个粒子周围的邻居数量保持在min_nn到max_nn之间。参数adjust_radius_factor确定了每个时间步的调整量。典型值为adjust_radius_factor = 1.02，min_nn = 15，max_nn = 20。
+
+limit_velocity关键字将控制速度，如果速度超过了指定的限制（max_vel），则会将速度向量的范数缩放到该速度限制之内。*/
 #include <stdio.h>
 #include <string.h>
 #include "fix_smd_integrate_ulsph.h"

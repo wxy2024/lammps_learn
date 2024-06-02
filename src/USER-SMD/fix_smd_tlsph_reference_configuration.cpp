@@ -23,7 +23,6 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
 #include "lattice.h"
 #include <mpi.h>
 #include <string.h>
