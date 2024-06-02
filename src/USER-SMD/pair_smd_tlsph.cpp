@@ -62,7 +62,7 @@ using namespace SMD_Math;
 #define TLSPH_DEBUG 0
 #define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
 #define BUFEXTRA 1000
-
+/*pair_smd_tlsph是LAMMPS（Large-scale Atomic/Molecular Massively Parallel Simulator）分子动力学模拟软件中的一种势函数。该势函数用于描述粒子之间的相互作用，特别是在颗粒模拟中，用于模拟球形颗粒之间的力学行为。*/
 /* ---------------------------------------------------------------------- */
 
 PairTlsph::PairTlsph(LAMMPS *lmp) :

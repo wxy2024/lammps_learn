@@ -25,7 +25,7 @@
 /* ----------------------------------------------------------------------
    Contributing author: Mike Parks (SNL)
 ------------------------------------------------------------------------- */
-
+/*pair_smd_triangulated_surface是一种在分子动力学模拟中用于描述表面颗粒之间相互作用的势函数。*/
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
