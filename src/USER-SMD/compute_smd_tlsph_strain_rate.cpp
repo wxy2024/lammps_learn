@@ -22,6 +22,9 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+/*定义一个计算，用于计算通过Total-Lagrangian SPH对样式进行相互作用的粒子的应变张量的应变率。
+这可以通过跟踪粒子周围物质的运动和形变来实现。
+应变率张量描述了物体形变的速率，它可以告诉我们在给定时间内，物体的形状和大小是如何变化的。*/
 //传入应变率D
 #include <string.h>
 #include "compute_smd_tlsph_strain_rate.h"

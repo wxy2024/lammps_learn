@@ -21,6 +21,8 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+//定义一个计算，用于计算变形梯度。这仅对按照全拉格朗日SPH对样式进行相互作用的粒子具有意义。
+//https://docs.lammps.org/compute_smd_tlsph_defgrad.html
 //从原子中传入变形梯度，满足条件的更新
 #include <string.h>
 #include "compute_smd_tlsph_defgrad.h"

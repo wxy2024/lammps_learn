@@ -22,6 +22,8 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
+//定义一个计算，该计算输出每个粒子的焓，即势能和热的总和。
+//https://docs.lammps.org/compute_smd_internal_energy.html
 //从原子中传入内能
 #include <string.h>
 #include "compute_smd_internal_energy.h"

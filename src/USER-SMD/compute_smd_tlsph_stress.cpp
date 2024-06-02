@@ -21,6 +21,8 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+/*定义一个计算，用于输出通过Total-Lagrangian SPH对样式进行相互作用的粒子的Cauchy应力张量。
+Cauchy应力张量描述了在给定点和给定方向上的应力状态。这可以通过考虑粒子周围的力和形变来计算。*/
 //计算并存储应力
 #include <string.h>
 #include "compute_smd_tlsph_stress.h"

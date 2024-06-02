@@ -22,6 +22,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+/*定义一个计算，返回由 fix smd/wall_surface 创建的网格的三角形元素的顶点坐标。这可以通过提取每个三角形元素的顶点坐标来实现。fix smd/wall_surface 是用于模拟受控速度下壁面的分子动力学方法，它可以在模拟过程中生成一个网格来代表壁面。通过获取这个网格的三角形元素的顶点坐标，可以进一步分析模拟结果或进行可视化。*/
 //从原子中传入smd_data_9作为outputVector
 #include <string.h>
 #include "compute_smd_triangle_mesh_vertices.h"

@@ -21,7 +21,8 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+/*定义一个计算，用于输出通过更新的Lagrangian SPH对样式进行相互作用的粒子的对数应变张量的速率。对数应变张量描述了物体的变形程度，其速率可以提供关于变形的动态信息。*/
+//求物体在时间上的变形速率
 #include <string.h>
 #include "compute_smd_ulsph_strain_rate.h"
 #include "atom.h"

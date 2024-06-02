@@ -21,6 +21,10 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+/*定义一个计算，用于输出每个粒子的CFL稳定时间增量。这个时间增量基本上由声速除以SPH平滑长度得到。
+因为声速和平滑长度通常在模拟过程中变化，所以稳定时间增量需要在每个时间步重新计算。
+这个计算在相关的SPH对样式中会自动执行，而这个计算只是为了使稳定时间增量可用于输出目的。*/
+//https://docs.lammps.org/compute_smd_tlsph_dt.html
 //从原子中传入dt，不过dt是啥？
 #include <string.h>
 #include "compute_smd_tlsph_dt.h"

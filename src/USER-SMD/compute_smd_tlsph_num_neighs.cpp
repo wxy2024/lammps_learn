@@ -22,6 +22,9 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+//https://docs.lammps.org/compute_smd_tlsph_num_neighs.html
+/*定义一个计算，用于计算通过全拉格朗日SPH对样式相互作用的粒子在平滑核半径内的数量。
+简而言之，它帮助我们了解在特定条件下，每个粒子周围有多少个相邻粒子。*/
 //对于每一个原子更新它邻居粒子的数量？
 #include <string.h>
 #include "compute_smd_tlsph_num_neighs.h"

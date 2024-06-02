@@ -22,6 +22,8 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
+//定义一个计算，该计算输出每个粒子的等效塑性应变。此命令仅在定义了具有塑性的材料模型时才有意义。
+//https://docs.lammps.org/compute_smd_plastic_strain.html
 //从原子中传入塑性应变
 #include <string.h>
 #include "compute_smd_plastic_strain.h"

@@ -21,6 +21,12 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+//https://docs.lammps.org/compute_smd_tlsph_shape.html
+/*这个计算可以帮助我们输出每个粒子周围体积的形状，将其表示为一个旋转的椭球体。
+这对于了解SPH方法中粒子周围物质的排列和形状变化非常有帮助。*/
+/*描述了如何使用粒子的Green-Lagrange应变张量来计算椭球轴的长度。
+Green-Lagrange应变张量是一种用于描述物体形变的张量，它可以告诉我们在粒子周围的空间中，物体是如何拉伸或压缩的。
+通过将这些应变张量与接触半径相乘，就可以得到椭球的轴长度。*/
 //计算应变，这里面有点复杂，没找到对应公式
 #include <string.h>
 #include "compute_smd_tlsph_shape.h"

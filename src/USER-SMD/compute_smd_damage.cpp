@@ -22,6 +22,8 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
+//https://docs.lammps.org/compute_smd_damage.html
+/*定义一个计算，根据通过SMD SPH对样式定义的损伤模型，例如最大塑性应变失效准则，来计算SPH粒子的损伤状态。*/
 //从原子中传入损伤数组
 #include <string.h>
 #include "compute_smd_damage.h"

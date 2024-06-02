@@ -22,6 +22,12 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
+/*定义一个计算，该计算输出接触半径，即用于防止粒子相互穿透的半径。
+接触半径仅用于防止属于不同物理体的粒子相互穿透。
+它被接触对样式（例如，smd/hertz和smd/tri_surface）使用。
+对于不在指定计算组中的粒子，接触半径的值将为0.0。*/
+//https://docs.lammps.org/compute_smd_contact_radius.html
+
 //传入/更新接触半径
 #include <string.h>
 #include "compute_smd_contact_radius.h"

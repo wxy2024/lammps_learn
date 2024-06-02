@@ -22,6 +22,9 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+/*定义一个计算，用于计算通过Total-Lagrangian SPH对样式进行相互作用的粒子的Green-Lagrange应变张量。
+这可以通过跟踪粒子周围物质的变形来实现。
+Green-Lagrange应变张量描述了物体的形变程度，它考虑了初始和最终状态之间的变化，而不仅仅是线性应变。*/
 //更新应变
 #include <string.h>
 #include "compute_smd_tlsph_strain.h"

@@ -21,6 +21,10 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+ 
+//定义一个计算，用于计算每个粒子的质量密度。
+//质量密度是粒子的质量（在模拟过程中保持恒定）除以其体积（由于机械变形而可能改变）得到的。
+//https://docs.lammps.org/compute_smd_rho.html
 //从原子中传入密度
 #include <string.h>
 #include "compute_smd_rho.h"
