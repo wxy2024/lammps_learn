@@ -10,7 +10,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//"sph/rhosum" 样式通过核函数插值计算每 N 步时间步长的 SPH 粒子的局部粒子质量密度 rho。
 #include <math.h>
 #include <stdlib.h>
 #include "pair_sph_rhosum.h"

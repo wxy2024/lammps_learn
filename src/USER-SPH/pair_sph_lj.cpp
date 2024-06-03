@@ -10,7 +10,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+/*根据上述描述，"sph/lj" 样式根据 Lennard-Jones 状态方程计算粒子之间的压力力，该方程根据 Ree 的 1980 年多项式拟合计算。Lennard-Jones 参数 epsilon 和 sigma 被设置为单位值。此 pair style 还计算 Monaghan 的人工粘性以防止粒子相互渗透。*/
 #include <math.h>
 #include <stdlib.h>
 #include "pair_sph_lj.h"

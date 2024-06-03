@@ -10,7 +10,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//sph/idealgas 样式计算粒子之间的压力 根据理想的气体状态方程
 #include <math.h>
 #include <stdlib.h>
 #include "pair_sph_idealgas.h"

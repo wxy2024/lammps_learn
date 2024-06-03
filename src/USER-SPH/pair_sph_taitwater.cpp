@@ -10,7 +10,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//"sph/taitwater" 样式根据 Tait 方程状态计算 SPH 粒子之间的压力力。
 #include <math.h>
 #include <stdlib.h>
 #include "pair_sph_taitwater.h"

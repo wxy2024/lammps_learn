@@ -10,7 +10,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//sph/热传导方式计算 SPH 粒子之间的热传递。 输运模型是内能的扩散方程。
 #include <math.h>
 #include <stdlib.h>
 #include "pair_sph_heatconduction.h"

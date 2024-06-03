@@ -21,7 +21,7 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
+//"smd/ulsph" 样式根据连续介质力学的本构定律和更新的拉格朗日平滑粒子流体动力学算法计算粒子之间的相互作用。
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
@@ -56,7 +56,7 @@ using namespace Eigen;
 #define ARTIFICIAL_STRESS false
 #define FORMAT1 "%60s : %g\n"
 #define FORMAT2 "\n.............................. %s \n"
-
+//初始化PairULSPH类的成员变量
 PairULSPH::PairULSPH(LAMMPS *lmp) :
 		Pair(lmp) {
 
