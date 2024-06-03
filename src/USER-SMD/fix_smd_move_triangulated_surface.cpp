@@ -293,6 +293,7 @@ void FixSMDMoveTriSurf::initial_integrate(int vflag) {
 
                                 /*
                                  * if this is a triangle, move the vertices as well
+                                 * 如果是三角形，也要移动顶点
                                  */
 
                                 if (mol[i] >= 65535) {
@@ -442,7 +443,7 @@ void FixSMDMoveTriSurf::initial_integrate(int vflag) {
                                         smd_data_9[i][8] = rotated_point(2);
                                         v3 = rotated_point;
 
-                                        // recalculate triangle normal
+                                        // recalculate triangle normal重新计算三角形法线
                                         n = (v2 - v1).cross(v2 - v3);
                                         n /= n.norm();
                                         x0[i][0] = n(0);

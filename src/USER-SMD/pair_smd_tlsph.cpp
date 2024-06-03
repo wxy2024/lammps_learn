@@ -334,6 +334,7 @@ void PairTlsph::PreCompute() {
 
 			if (JAUMANN) {
 				R[i].setIdentity(); // for Jaumann stress rate, we do not need a subsequent rotation back into the reference configuration
+			    //对于琼曼应力速率，我们不需要随后旋转回参考构型
 			} else {
 				//分解为拉伸和旋转
 				status = PolDec(Fincr[i], R[i], U, false); // polar decomposition of the deformation gradient, F = R * U
@@ -354,7 +355,7 @@ void PairTlsph::PreCompute() {
 			L = Fdot[i] * FincrInv[i];//求速度梯度
 
 			// symmetric (D) and asymmetric (W) parts of L
-			D[i] = 0.5 * (L + L.transpose());//求应变率
+			D[i] = 0.5 * (L + L.transpose());//求应变率 论文伪代码22行
 			W[i] = 0.5 * (L - L.transpose()); //自旋张量 spin tensor:: need this for Jaumann rate
 
 			// unrotated rate-of-deformation tensor d, see right side of Pronto2d, eqn.(2.1.7)
@@ -586,6 +587,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			x0j(2) = x0[j][2];
 
 			// check that distance between i and j (in the reference config) is less than cutoff
+			//检查 i 和 j 之间的距离（在参考配置中）是否小于截止值
 			dx0 = x0j - x0i;
 
 			if (periodic)
@@ -617,7 +619,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			vwf = volj * wf_list[i][jj];
 			wfd = wfd_list[i][jj];
-			g = g_list[i][jj]; // uncorrected kernel gradient
+			g = g_list[i][jj]; // uncorrected kernel gradient 未校正的核梯度
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
@@ -637,10 +639,26 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// }
 
 			/*
-			 * artificial viscosity
+			 * artificial viscosity人工粘度
 			 */
+                        //这段代码涉及粒子间的粘滞力计算
+						/*计算相对速度在单位粒子距离向量上的投影
+						delVdotDelR = dx.dot(dv) / (r + 0.1 * h);
+						这里dx是粒子 i 和 j 之间的距离向量，dv是粒子 i 和 j 之间的相对速度，r是粒子 i 和 j 之间的距离，h是一个常数。这个步骤将相对速度投影到了单位粒子距离向量上，单位是m/s。
 
+						计算粘滞率mu_ij
+						mu_ij = h * delVdotDelR / (r + 0.1 * h);
+						这一步根据相对速度的投影和距离计算了粘滞率，单位是m/s。
+
+						计算粘滞力的大小
+						visc_magnitude = (-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij + Lookup[VISCOSITY_Q2][itype] * mu_ij * mu_ij) / Lookup[REFERENCE_DENSITY][itype];
+						这一步根据粘滞率计算了粘滞力的大小，单位是N。
+
+						计算粘滞力
+						f_visc = rmass[i] * rmass[j] * visc_magnitude * wfd * dx / (r + 1.0e-2 * h);
+						最后，根据粘滞力的大小、粒子质量和距离等参数计算了粘滞力的矢量值，单位是N。*/
                         delVdotDelR = dx.dot(dv) / (r + 0.1 * h); // project relative velocity onto unit particle distance vector [m/s]
+																  //将相对速度投影到单位粒子距离矢量上 [m/s]
                         //LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
                         mu_ij = h * delVdotDelR / (r + 0.1 * h); // units: [m * m/s / m = m/s]
                         visc_magnitude = (-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij
@@ -648,8 +666,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			f_visc = rmass[i] * rmass[j] * visc_magnitude * wfd * dx / (r + 1.0e-2 * h); // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
 
 			/*
-			 * hourglass deviation of particles i and j
+			 * hourglass deviation of particles i and j粒子 i 和粒子 j 的沙漏偏差
 			 */
+			/*1.计算畸变误差：首先，从预定义的数组r0中获取r0_的值。
+							接着，计算gamma，其中包括了Fincr、dx0、dx的组合计算。
+							然后，计算畸变误差hg_err，它是gamma的范数除以r0_。
+			2.更新每个粒子的小时玻璃误差：将vwf乘以hg_err，然后加到hourglass_error[i]上。
+			3.更新最大粘滞率：计算最大粘滞率max_mu_ij[i]，
+			其值为max_mu_ij[i]和(Lookup[VISCOSITY_Q1][itype] + hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype]) * fabs(mu_ij)中较大的一个。*/
 			r0_ = r0[i][jj];
                         gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
                         hg_err = gamma.norm() / r0_;
@@ -829,11 +853,11 @@ void PairTlsph::AssembleStress() {
 
 				pInitial = sigmaInitial.trace() / 3.0; // isotropic part of initial stress
 				sigmaInitial_dev = Deviator(sigmaInitial);
-				d_iso = D[i].trace(); // volumetric part of stretch rate
-				d_dev = Deviator(D[i]); // deviatoric part of stretch rate
+				d_iso = D[i].trace(); // volumetric part of stretch rate拉伸率的体积部分 论文伪代码中24行
+				d_dev = Deviator(D[i]); // deviatoric part of stretch rate拉伸率的偏差部分
 				Matrix3d FtF = Fincr[i].transpose() * Fincr[i];
 				strain = 0.5 * (FtF - eye);
-				mass_specific_energy = e[i] / rmass[i]; // energy per unit mass
+				mass_specific_energy = e[i] / rmass[i]; // energy per unit mass单位质量的能量
 				rho[i] = rmass[i] / (detF[i] * vfrac[i]);
 				//rho[i] = rmass[i] / (sqrt(FtF.determinant()) * vfrac[i]);
 				vol_specific_energy = mass_specific_energy * rho[i]; // energy per current volume
@@ -858,7 +882,7 @@ void PairTlsph::AssembleStress() {
 				  printf("eff_plastic_strain[%d] = %f, plastic_strain_increment = %f\n", atom->tag[i], eff_plastic_strain[i], plastic_strain_increment);
 				}
 
-				// compute a characteristic time over which to average the plastic strain
+				// compute a characteristic time over which to average the plastic strain计算平均塑性应变的特征时间
 				double tav = 1000 * radius[i] / (Lookup[SIGNAL_VELOCITY][itype]);
 				eff_plastic_strain_rate[i] -= eff_plastic_strain_rate[i] * dt / tav;
 				eff_plastic_strain_rate[i] += plastic_strain_increment / tav;
@@ -881,7 +905,8 @@ void PairTlsph::AssembleStress() {
 						sigma_rate.setZero();
 					}
 
-					Jaumann_rate = sigma_rate + W[i] * sigmaInitial + sigmaInitial * W[i].transpose();
+					//这段代码涉及到材料中的Jaumann应力更新算法
+					Jaumann_rate = sigma_rate + W[i] * sigmaInitial + sigmaInitial * W[i].transpose();//J
 					sigmaFinal = sigmaInitial + dt * Jaumann_rate;
 					T = sigmaFinal;
 				} else {
@@ -893,8 +918,8 @@ void PairTlsph::AssembleStress() {
 				}
 
 				/*
-				 * store unrotated stress in atom vector
-				 * symmetry is exploited
+				 * store unrotated stress in atom vector在原子矢量中存储未旋转的应力
+				 * symmetry is exploited利用了对称性
 				 */
 				tlsph_stress[i][0] = sigmaFinal(0, 0);
 				tlsph_stress[i][1] = sigmaFinal(0, 1);
@@ -904,7 +929,7 @@ void PairTlsph::AssembleStress() {
 				tlsph_stress[i][5] = sigmaFinal(2, 2);
 
 				/*
-				 *  Damage due to failure criteria.
+				 *  Damage due to failure criteria.故障标准造成的损坏。
 				 */
 
 				if (failureModel[itype].integration_point_wise) {
@@ -912,18 +937,20 @@ void PairTlsph::AssembleStress() {
 				  T = T_damaged;
 				}
 
-				// store rotated, "true" Cauchy stress
+				// store rotated, "true" Cauchy stress存储旋转的、"真正的 "柯西应力  伪代码27行
 				CauchyStress[i] = T;
 
 				/*
-				 * We have the corotational Cauchy stress.
+				 * We have the corotational Cauchy stress.我们有柯西应力。
 				 * Convert to PK1. Note that reference configuration used for computing the forces is linked via
 				 * the incremental deformation gradient, not the full deformation gradient.
+				 * 转换为 PK1。请注意，用于计算力的参考构型是通过增量变形梯度而不是完全变形梯度连接的。
 				 */
 				PK1[i] = detF[i] * T * FincrInv[i].transpose();
 
 				/*
 				 * pre-multiply stress tensor with shape matrix to save computation in force loop
+				 将应力张量与形状矩阵预乘，以节省力循环中的计算量
 				 */
 				PK1[i] = PK1[i] * K[i].transpose();
 
@@ -964,7 +991,7 @@ void PairTlsph::AssembleStress() {
 		}
 				dtCFL = MIN(dtCFL, particle_dt[i]);
 
-				//Determine the derivative of the flowstress with respect to the strain:
+				//Determine the derivative of the flowstress with respect to the strain:确定流应力相对于应变的导数：
 				if (eff_plastic_strain[i] > 0.0) {
 				  flowstress_slope[i] = MIN(Lookup[YOUNGS_MODULUS][itype],flowstress.evaluate_derivative(eff_plastic_strain[i]));
 				} else {

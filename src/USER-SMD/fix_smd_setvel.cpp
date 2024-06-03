@@ -318,6 +318,9 @@ void FixSMDSetVel::post_force(int vflag) {
 
                 //printf("setting velocity at timestep %d\n", update->ntimestep);
 
+                //对于每个满足条件的粒子，根据不同的 xstyle、ystyle 和 zstyle 来设置其速度（v）和力（f）的值。
+                //如果某个方向上的 style 是 ATOM，则将对应的速度设置为 sforce[i][0]、sforce[i][1] 或 sforce[i][2]，并将力设为零。
+                //如果 style 不是 ATOM，则将速度设置为 xvalue、yvalue 或 zvalue，并将力设为零。
                 for (int i = 0; i < nlocal; i++)
                         if (mask[i] & groupbit) {
                                 if (region && !region->match(x[i][0], x[i][1], x[i][2]))

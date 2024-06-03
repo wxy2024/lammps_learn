@@ -47,7 +47,8 @@
 using namespace LAMMPS_NS;
 
 #define SQRT2 1.414213562e0
-/*pair_smd_hertz是一种用于描述基于Hertz接触力模型的分子间力的势函数，通常用于描述颗粒之间的力学相互作用。Hertz接触力模型基于弹性理论，用于描述在颗粒之间的碰撞和接触时的力学行为。*/
+/*pair_smd_hertz是一种用于描述基于Hertz接触力模型的分子间力的势函数，通常用于描述颗粒之间的力学相互作用。
+Hertz接触力模型基于弹性理论，用于描述在颗粒之间的碰撞和接触时的力学行为。*/
 /* ---------------------------------------------------------------------- */
 
 PairHertz::PairHertz(LAMMPS *lmp) :
@@ -172,13 +173,18 @@ void PairHertz::compute(int eflag, int vflag) {
                                 //printf("hertz interaction, r=%f, cut=%f, h=%f\n", r, rcut, sqrt(rSq0));
                                 //赫兹相互作用
                                 // Hertzian short-range forces
-                                delta = rcut - r; // overlap distance
+                                delta = rcut - r; // overlap distance重叠距离
                                 r_geom = ri * rj / rcut;
                                 //assuming poisson ratio = 1/4 for 3d
+                                //fpair表示粒子间的力，根据公式计算得到。
+                                //其中，bulkmodulus[itype][jtype]是材料的体积模量，
+                                //damage[i]和damage[j]表示两个粒子的损伤参数，
+                                //delta是粒子间的重叠距离，r_geom是几何平均半径。
                                 fpair = 1.066666667e0 * bulkmodulus[itype][jtype] * (1-damage[i]) * (1-damage[j]) * delta * sqrt(delta * r_geom); //  units: N
-                                evdwl = fpair * 0.4e0 * delta; // GCG 25 April: this expression conserves total energy
+                                evdwl = fpair * 0.4e0 * delta; // GCG 25 April: this expression conserves total energy  GCG 4 月 25 日：这一表达式保存了总能量
                                 dt_crit = 3.14 * sqrt(0.5 * (rmass[i] + rmass[j]) / (fpair / delta));
-
+                                //dt_crit表示稳定时间步长，根据一定的公式计算得到。
+                                //这个时间步长用于稳定性分析，确保模拟过程中的时间步不至于过大导致数值不稳定。
                                 stable_time_increment = MIN(stable_time_increment, dt_crit);
                                 if (r > 2.0e-16) {
                                         fpair /= r; // divide by r and multiply with non-normalized distance vector除以 r，再乘以非标准化距离向量

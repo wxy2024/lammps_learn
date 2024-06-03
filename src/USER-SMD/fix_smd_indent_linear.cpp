@@ -339,7 +339,7 @@ void FixSMDIndentLinear::post_force(int vflag)
         indenter[3] -= fz;
       }
 
-  // planar indenter
+  // planar indenter 平面压头
 
   } else {
 
