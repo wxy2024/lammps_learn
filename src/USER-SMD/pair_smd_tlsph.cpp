@@ -64,32 +64,47 @@ using namespace SMD_Math;
 #define BUFEXTRA 1000
 /*"smd/tlsph" 样式根据连续介质力学本构定律和全拉格朗日平滑粒子流体动力学算法计算粒子之间的相互作用。*/
 /* ---------------------------------------------------------------------- */
-
+	//构造函数
 PairTlsph::PairTlsph(LAMMPS *lmp) :
 		Pair(lmp) {
-
+	//粒子半径或相关属性有关的指针
 	onerad_dynamic = onerad_frozen = maxrad_dynamic = maxrad_frozen = NULL;
-
+	//材料的失效模型、强度模型和状态方程（Equation of State）有关的对象指针
 	failureModel = NULL;
 	strengthModel = eos = NULL;
 
-	nmax = 0; // make sure no atom on this proc such that initial memory allocation is correct
+	//变形梯度张量及其变化率相关的矩阵或张量指针
 	Fdot = Fincr = PK1 = NULL;
 	R = FincrInv = W = D = NULL;
 	detF = NULL;
+	//用于平滑速度差异的指针
 	smoothVelDifference = NULL;
+	//参考配置中的邻居数目相关的指针
 	numNeighsRefConfig = NULL;
+	//存储 Cauchy 应力张量的指针
 	CauchyStress = NULL;
+	//砂漏控制错误相关的指针
 	hourglass_error = NULL;
+	//查找表的指针
 	Lookup = NULL;
+	//粒子时间步长相关的指针
 	particle_dt = NULL;
+	//用于存储最大速度平方值的指针
 	vijSq_max = NULL;
+	//某种摩擦系数相关的指针
 	max_mu_ij = NULL;
+	//损伤增量相关的指针
 	damage_increment = NULL;
+	//初始失效时的有效塑性应变
 	eff_plastic_strain_at_failure_init = NULL;
 
+	//处理器上最大原子数，用于内存分配
+	nmax = 0; // make sure no atom on this proc such that initial memory allocation is correct
+	//用于跟踪是否需要更新的标志
 	updateFlag = 0;
+	//用于跟踪是否第一次调用的标志
 	first = true;
+	//CFL (Courant-Friedrichs-Lewy) 条件下的时间步长，初始化为 0.0
 	dtCFL = 0.0; // initialize dtCFL so it is set to safe value if extracted on zero-th timestep
 	rSqMin = NULL;
 	dvMax = NULL;
@@ -113,7 +128,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 }
 
 /* ---------------------------------------------------------------------- */
-
+//析构函数
 PairTlsph::~PairTlsph() {
 	//printf("in PairTlsph::~PairTlsph()\n");
 
@@ -166,23 +181,24 @@ PairTlsph::~PairTlsph() {
  ---------------------------------------------------------------------- */
 
 void PairTlsph::PreCompute() {
-	tagint *mol = atom->molecule;
-	double *vfrac = atom->vfrac;
-	double *radius = atom->radius;
-	double **x0 = atom->x0;
-	double **x = atom->x;
-	double **v = atom->vest; // extrapolated velocities corresponding to current positions
-	double **vint = atom->v; // Velocity-Verlet algorithm velocities
-	double *damage = atom->damage;
-	tagint *tag = atom->tag;
-	int *type = atom->type;
-	int nlocal = atom->nlocal;
-	double dt = update->dt;
+    // 原子属性和变量初始化
+	tagint *mol = atom->molecule;  // 原子所属分子的标签数组
+	double *vfrac = atom->vfrac;  // 原子体积分数数组
+	double *radius = atom->radius;  // 原子半径数组
+	double **x0 = atom->x0;  // 原子初始位置数组
+	double **x = atom->x;  // 原子当前位置数组
+	double **v = atom->vest;  // 当前位置对应的外推速度数组
+	double **vint = atom->v;  // Velocity-Verlet算法速度数组
+	double *damage = atom->damage;  // 原子受损程度数组
+	tagint *tag = atom->tag;  // 原子标签数组
+	int *type = atom->type;  // 原子类型数组
+	int nlocal = atom->nlocal;  // 本地原子数量
+	double dt = update->dt;  // 时间步长
 	int jnum, jj, i, j, itype, idim;
 
-	tagint **partner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partner;
-	int *npartner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->npartner;
-	float **wfd_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wfd_list;
+	tagint **partner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partner;// 相邻原子的标签数组
+	int *npartner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->npartner; // 相邻原子数量数组
+	float **wfd_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wfd_list; // 相邻原子之间的权重数组
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
@@ -194,37 +210,46 @@ void PairTlsph::PreCompute() {
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 	bool status;
-	Matrix3d F0;
-
+	Matrix3d F0;// 3x3矩阵用于存储力场的参考配置
+	// 设置时间步长参数
 	dtCFL = 1.0e22;
 
+	// 初始化单位矩阵
 	eye.setIdentity();
-	for (i = 0; i < nlocal; i++) {
-		vijSq_max[i] = 0.0;//原子i和所有j的速度平方的最大值
 
+	// 遍历每个本地原子
+	for (i = 0; i < nlocal; i++) {
+		//将原子i和所有相邻原子j的速度平方的最大值初始化为0
+		vijSq_max[i] = 0.0;
+
+		// 获取原子i的类型
 		itype = type[i];
 		
+		// 如果需要进行设置
 		if (setflag[itype][itype] == 1) {
-			Fincr[i].setZero();
-			Fdot[i].setZero();
-			numNeighsRefConfig[i] = 0;
-			smoothVelDifference[i].setZero();
-			hourglass_error[i] = 0.0;
+			// 对一些变量进行初始化
+        Fincr[i].setZero();
+        Fdot[i].setZero();
+        numNeighsRefConfig[i] = 0;
+        smoothVelDifference[i].setZero();
+        hourglass_error[i] = 0.0;
 
-			if (mol[i] < 0) { // valid SPH particle have mol > 0
-				continue;
-			}
-
-			// initialize aveage mass density
-			h = 2.0 * radius[i];//作用范围的直径
+        // 如果mol[i]小于0，表示有效的SPH粒子应该有mol大于0
+        if (mol[i] < 0) {
+            continue; // 跳过此次循环
+        }
+        // 计算作用范围的直径
+        h = 2.0 * radius[i];
+			// 调用spiky_kernel_and_derivative函数计算核函数及其导数
 			spiky_kernel_and_derivative(h, 0.0, domain->dimension, wf, wfd);//传入核函数及其导数
-
+			//获取作用范围内的原子数量
 			jnum = npartner[i];//作用范围内的原子数量
+			// 获取原子半径和体积分数
 			irad = radius[i];//作用半径
 			voli = vfrac[i];//体积
-
+			// 计算shepardWeight
 			shepardWeight = wf * voli;//核函数乘体积
-
+			// 从LAMMPS数据结构中初始化Eigen数据结构
 			// initialize Eigen data structures from LAMMPS data structures
 			for (idim = 0; idim < 3; idim++) {
 				xi(idim) = x[i][idim];
@@ -235,22 +260,23 @@ void PairTlsph::PreCompute() {
 			
 			//Matrix3d gradAbsX;
 			//gradAbsX.setZero();
-
+			// 初始化一些变量
 			rSqMin[i] = 1.0e22;
 			dvMax[i] = 1.0e-15;
-
+			// 遍历每个相邻原子
 			for (jj = 0; jj < jnum; jj++) {
 
 				// if (degradation_ij[i][jj] >= 1.0) continue;
-				
+				// 映射相邻原子的索引到原子数组中的索引		
 				j = atom->map(partner[i][jj]);
+				// 如果返回的索引小于0，表示出现错误，输出错误信息并终止程序
 				if (j < 0) { //			// check if lost a partner without first breaking bond
 				  printf("Link between %d and %d destroyed without first breaking bond! Damage level in the link was: %f\n", tag[i], partner[i][jj], degradation_ij[i][jj]);
 				  error->all(FLERR, "Bond broken");
 				  degradation_ij[i][jj] = 1.0;
 				  continue;
 				}
-
+				// 如果原子i和j的分子不具有相同的绝对值，则跳过此次循环
 				if (abs(mol[i]) != abs(mol[j])) {//绝对值相等
 					continue;
 				}
@@ -258,68 +284,73 @@ void PairTlsph::PreCompute() {
 
 				// distance vectors in current and reference configuration, velocity difference
 				// initialize Eigen data structures from LAMMPS data structures without for loop to maximize memory performance
-				x0j(0) = x0[j][0];
-				x0j(1) = x0[j][1];
-				x0j(2) = x0[j][2];
-				dx0 = x0j - x0i;//Xij，参考配置下两个原子之间的距离？
+				x0j(0) = x0[j][0]; // 将原子j的参考位置x坐标从LAMMPS数据结构转换为Eigen数据结构
+				x0j(1) = x0[j][1]; // 将原子j的参考位置y坐标从LAMMPS数据结构转换为Eigen数据结构
+				x0j(2) = x0[j][2]; // 将原子j的参考位置z坐标从LAMMPS数据结构转换为Eigen数据结构
+				dx0 = x0j - x0i; // 计算原子i和j在参考配置下的距离向量
 
 				// initialize Eigen data structures from LAMMPS data structures
 				xj(0) = x[j][0];
 				xj(1) = x[j][1];
 				xj(2) = x[j][2];
-				dx = xj - xi;   //变化后的两个原子之间的距离
+				dx = xj - xi;   //变化后的两个原子之间的距离向量
 
 				// initialize Eigen data structures from LAMMPS data structures
 				vj(0) = v[j][0];
 				vj(1) = v[j][1];
 				vj(2) = v[j][2];
-				dv = vj - vi;
+				dv = vj - vi;//计算原子i和j的速度差
 
 				// initialize Eigen data structures from LAMMPS data structures
 				vintj(0) = vint[j][0];
 				vintj(1) = vint[j][1];
 				vintj(2) = vint[j][2];
-				dvint = vintj - vinti;
+				dvint = vintj - vinti;//计算原子i和j的瞬时速度差
 
-				volj = vfrac[j];
+				volj = vfrac[j];//获取原子j的体积分数
 
 				if (failureModel[itype].integration_point_wise == true) {
-				  if (damage[j] > 0.0) {//如果原子j有损伤，i和j之间的距离要增加？
-				    dv *= (1-damage[j]);
-				    dvint *= (1-damage[j]);
-				    partnerdx[i][jj] += dt * dv;
-				    dx = partnerdx[i][jj];
-				    // volj *= scale;
+  					if (damage[j] > 0.0) { // 如果原子j有损伤
+    					dv *= (1-damage[j]); // 缩放速度差，考虑损伤对速度的影响
+    					dvint *= (1-damage[j]); // 缩放瞬时速度差，考虑损伤对瞬时速度的影响
+    					partnerdx[i][jj] += dt * dv; // 更新合作原子i和j之间的距离向量
+    					dx = partnerdx[i][jj]; // 更新距离向量为更新后的值
+    					// volj *= scale; // 如果需要，缩放体积分数
 				    }
 				}
 
 				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
 				  printf("x[%d] - x[%d] = [%f %f %f] - [%f %f %f], di = %f, dj = %f\n", tag[j], tag[i], xj[0], xj[1], xj[2], xi[0], xi[1], xi[2], damage[i], damage[j]);
 				}
-				rSq = dx.squaredNorm(); // current distance
-				rSqMin[i] = MIN(rSq,rSqMin[i]);
-				dvMax[i] = MAX(dv.norm(),dvMax[i]);
+				// 检查距离向量是否包含NaN值，如果包含则打印错误信息
+				rSq = dx.squaredNorm(); // 计算当前距离的平方
+				rSqMin[i] = MIN(rSq, rSqMin[i]); // 更新最小平方距离
+				dvMax[i] = MAX(dv.norm(), dvMax[i]); // 更新最大速度差
 
 				if (periodic)
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));
+				// 如果启用周期性边界条件，将参考配置下的距离向量应用最小图像约束处理
 
-
+				// 更新最大速度差的平方
 				vijSq_max[i] = MAX(dv.squaredNorm(), vijSq_max[i]);
-				vijSq_max[i] = MAX(dvint.squaredNorm(), vijSq_max[i]);//更新最大 速度差的平方
+				vijSq_max[i] = MAX(dvint.squaredNorm(), vijSq_max[i]);
 
-				vwf = volj * wf_list[i][jj];
-				g = volj * g_list[i][jj];    //虚拟原子 这两个权重分别代表什么？？？
+				vwf = volj * wf_list[i][jj];// 可能代表体积加权因子
+				g = volj * g_list[i][jj]; // 可能代表形变梯度的加权因子   
+				//虚拟原子 这两个权重分别代表什么？？？
 
 				/* build matrices */;
+
 				Fdot[i].noalias() -= dv * g.transpose();//（8）更新变形矩阵的导数
 				Fincr[i].noalias() -= (dx - dx0) * g.transpose();//（7）更新变形矩阵
+				// 累积变形程度的加权和
 				shepardWeight += vwf;//这是累计变形程度的意思？
 				smoothVelDifference[i].noalias() += vwf * dvint;
-
+				//根据原子损伤程度更新参考配置中邻居的数量
 				if (damage[j]<1.0) numNeighsRefConfig[i]++;
 			} // end loop over j
-
 			// normalize average velocity field around an integration point
+			// 归一化原子周围的速度场
 			if (shepardWeight > 0.0) {//归一化i原子周围的速度场，为什么？
 				shepardWeightInv[i] = 1.0/shepardWeight;
 				smoothVelDifference[i] *= shepardWeightInv[i];
@@ -495,21 +526,24 @@ void PairTlsph::compute(int eflag, int vflag) {
 }
 
 void PairTlsph::ComputeForces(int eflag, int vflag) {
-	tagint *mol = atom->molecule;
-	tagint *tag = atom->tag;
-	double **x = atom->x;
-	double **v = atom->vest;
-	double **x0 = atom->x0;
-	double **f = atom->f;
-	double *vfrac = atom->vfrac;
-	double *rho = atom->rho;
-	double *de = atom->de;
-	double *rmass = atom->rmass;
-	double *radius = atom->radius;
-	double *damage = atom->damage;
-	double *plastic_strain = atom->eff_plastic_strain;
-	int *type = atom->type;
-	int nlocal = atom->nlocal;
+    // 获取原子属性指针
+    tagint *mol = atom->molecule;  // 原子的分子标识符数组指针
+    tagint *tag = atom->tag;       // 原子的标签（ID）数组指针
+    double **x = atom->x;          // 原子的坐标数组指针
+    double **v = atom->vest;       // 原子的速度数组指针
+    double **x0 = atom->x0;        // 原子的初始参考坐标数组指针
+    double **f = atom->f;          // 原子的力数组指针
+    double *vfrac = atom->vfrac;   // 原子的体积分数数组指针
+    double *rho = atom->rho;       // 原子的密度数组指针
+    double *de = atom->de;         // 原子的能量变化数组指针
+    double *rmass = atom->rmass;   // 原子的质量数组指针
+    double *radius = atom->radius; // 原子的半径数组指针
+    double *damage = atom->damage; // 原子的损伤数组指针
+    double *plastic_strain = atom->eff_plastic_strain; // 原子的有效塑性应变数组指针
+    int *type = atom->type;        // 原子的类型数组指针
+    int nlocal = atom->nlocal;     // 本地原子个数
+
+	// 定义和初始化一些变量
 	int i, j, jj, jnum, itype, idim;
 	double r, hg_mag, vwf, wf, wfd, h, r0_, r0inv_, irad, voli, volj, r_plus_h_inv;
 	double delVdotDelR, visc_magnitude, delta, deltaE, mu_ij, hg_err, rmassij, gamma_dot_dx;
@@ -517,8 +551,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, x0i, x0j, f_stressbc, fbc;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
+
+	// 检查是否存在周期性边界条件
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 
+	// 从 FixSMD_TLSPH_ReferenceConfiguration 修正中获取各种数据
 	tagint **partner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partner;
 	int *npartner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->npartner;
 	float **wfd_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wfd_list;
@@ -530,49 +567,57 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	double **r0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->r0;
 	Matrix3d *K = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K;
 	double **K_g_dot_dx0_normalized = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K_g_dot_dx0_normalized;
+	// 定义单位矩阵和sigmaBC矩阵
 	Matrix3d eye, sigmaBC_i;
-
+	// 定义其他变量
 	double deltat_1, deltat_2, deltat_3;
+	// 设置单位矩阵
 	eye.setIdentity();
-
+	// 如果需要计算能量或力，设置相关标志并进行相应初始化
 	if (eflag || vflag)
 		ev_setup(eflag, vflag);
 	else
-		evflag = vflag_fdotr = 0;
+		evflag = vflag_fdotr = 0;//// 否则将标志位设置为0
 
 	/*
 	 * iterate over pairs of particles i, j and assign forces using PK1 stress tensor
 	 */
 
 	//updateFlag = 0;
-	hMin = 1.0e22;
-	dtRelative = 1.0e22;
-
+	hMin = 1.0e22; // 初始化最小距离hMin为一个很大的值
+	dtRelative = 1.0e22; // 初始化相对时间步长dtRelative为一个很大的值
+	
+	// 循环遍历所有本地原子
 	for (i = 0; i < nlocal; i++) {
-		
+		// 如果当前粒子不是有效的SPH粒子（分子标识符小于0），则跳过这个粒子
 		if (mol[i] < 0) {
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
 		}
 
-		itype = type[i];
-		jnum = npartner[i];
-		irad = radius[i];
-		voli = vfrac[i];
-		max_mu_ij[i] = 0.0;
+		itype = type[i]; // 获取当前粒子的类型
+    	jnum = npartner[i]; // 获取与当前粒子相互作用的伙伴数量
+    	irad = radius[i]; // 获取当前粒子的半径
+    	voli = vfrac[i]; // 获取当前粒子的体积分数
+    
+    	max_mu_ij[i] = 0.0; // 初始化当前粒子的最大粘度参数为0.0
 
-		for (idim = 0; idim < 3; idim++) {
-			x0i(idim) = x0[i][idim];
-			xi(idim) = x[i][idim];
-			vi(idim) = v[i][idim];
-		}
-		
+    // 循环3次获取当前粒子的参考坐标、当前坐标和速度
+    for (idim = 0; idim < 3; idim++) {
+        x0i(idim) = x0[i][idim]; // 获取参考坐标
+        xi(idim) = x[i][idim]; // 获取当前坐标
+        vi(idim) = v[i][idim]; // 获取速度
+    }
+		// 遍历与当前粒子相互作用的所有伙伴
 		for (jj = 0; jj < jnum; jj++) {
+			// 获取与当前粒子相互作用的伙伴的原子标签
 			j = atom->map(partner[i][jj]);
+
+			// 如果伙伴原子标签不存在，则报错并继续下一个伙伴的计算
 			if (j < 0) { //			// check if lost a partner without first breaking bond
 			  error->all(FLERR, "Bond broken not detected during PreCompute - 2!");
 			  continue;
 			}
-
+			// 如果两个原子的分子标识符的绝对值不相等，则跳过这个伙伴
 			if ((abs(mol[i]) != abs(mol[j]))) {
 				continue;
 			}
@@ -581,7 +626,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				sprintf(str, "particle pair is not of same type!");
 				error->all(FLERR, str);
 			}
-
 			x0j(0) = x0[j][0];
 			x0j(1) = x0[j][1];
 			x0j(2) = x0[j][2];
@@ -589,7 +633,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// check that distance between i and j (in the reference config) is less than cutoff
 			//检查 i 和 j 之间的距离（在参考配置中）是否小于截止值
 			dx0 = x0j - x0i;
-
+			// 如果存在周期性边界条件，则对dx0进行最小图像约束
 			if (periodic)
 				domain->minimum_image(dx0(0), dx0(1), dx0(2));
 
@@ -598,6 +642,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			volj = vfrac[j];
 
 			// distance vectors in current and reference configuration, velocity difference
+			// 一系列关于距离、速度、体积等的计算和更新操作
 			xj(0) = x[j][0];
 			xj(1) = x[j][1];
 			xj(2) = x[j][2];
@@ -607,14 +652,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			vj(1) = v[j][1];
 			vj(2) = v[j][2];
 			dv = vj - vi;
-
+			// 根据失败模型的集成方式对速度和位移进行调整
 			if (failureModel[itype].integration_point_wise == true) {
 			  if (damage[j] > 0.0) {//这是在干嘛
 			    dv *= (1-damage[j]);
 			    dx = partnerdx[i][jj];
 			  }
 			}
-
+			// 计算当前位置下粒子i和j之间的距离
 			r = dx.norm(); // current distance
 
 			vwf = volj * wf_list[i][jj];
@@ -624,6 +669,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
+			// 对力的贡献进行计算，根据损伤情况和PK1张量的情况进行不同的处理
 			if (damage[i] < 1.0 && damage[j] < 1.0) {
 			  if (damage[i] > 0.0 || damage[j] > 0.0) {
 			    f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g;
@@ -674,24 +720,32 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			2.更新每个粒子的小时玻璃误差：将vwf乘以hg_err，然后加到hourglass_error[i]上。
 			3.更新最大粘滞率：计算最大粘滞率max_mu_ij[i]，
 			其值为max_mu_ij[i]和(Lookup[VISCOSITY_Q1][itype] + hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype]) * fabs(mu_ij)中较大的一个。*/
+			// 获取参考距离 r0_，即 r0[i][jj]
 			r0_ = r0[i][jj];
-                        gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
-                        hg_err = gamma.norm() / r0_;
-                        hourglass_error[i] += vwf * hg_err;
+			// 计算 gamma，使用增量力 Fincr 和初始位移向量 dx0 以及当前位移向量 dx
+            gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
+			// 计算误差 hg_err，为 gamma 的范数与参考距离 r0_ 的比值
+            hg_err = gamma.norm() / r0_;
+			// 更新 hourglass_error 数组的第 i 项，增加 vwf * hg_err 的值
+            hourglass_error[i] += vwf * hg_err;
+			// 更新 max_mu_ij 数组的第 i 项，取现有值与新计算值的最大值
 			max_mu_ij[i] = MAX(max_mu_ij[i], (Lookup[VISCOSITY_Q1][itype] + hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype])*fabs(mu_ij));
 
-                        /* SPH-like hourglass formulation */
-
-                        if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
+            /* SPH-like hourglass formulation */
+			// 检查塑性应变是否大于 1.0e-3，以选择不同的处理方法
+            if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 			  /*
 			   * viscous hourglass formulation for particles with plastic deformation
 			   */
-			  delta = gamma.dot(dx);
+			  // 如果塑性应变大于阈值，进行相应处理
+			  delta = gamma.dot(dx);// 计算 delta，即 gamma 与 dx 的点积
+			  // 如果 delVdotDelR 与 delta 的乘积小于 0，执行此块代码
 			  if (delVdotDelR * delta < 0.0) {
 			    hg_err = MAX(hg_err, 0.05); // limit hg_err to avoid numerical instabilities
                                         hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij
 					  / Lookup[REFERENCE_DENSITY][itype]; // this has units of pressure
 			  } else {
+				// 否则，清零 f_hg
 			    hg_mag = 0.0;
 			  }
 			  f_hg = rmass[i] * rmass[j] * hg_mag * wfd * dx / (r + 1.0e-2 * h);
@@ -713,12 +767,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  } else {
 			    hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // hg_mag has dimensions [J*m^(-1)] = [N]
 			  }
-			  f_hg += (hg_mag / (r + 0.01 * h)) * dx;
+			  f_hg += (hg_mag / (r + 0.01 * h)) * dx;// 更新 f_hg
 
-                        // scale hourglass force with damage
+            // scale hourglass force with damage
+			// 根据 damage 数组修正 f_hg
 			f_hg *= (1.0 - damage[i]) * (1.0 - damage[j]);
 
 			// sum stress, viscous, and hourglass forces
+			// 计算 sumForces，即 f_stress、f_visc 和 f_hg 的和
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
 			// if ((tag[i] == 762 && tag[j] == 570)||(tag[i] == 570 && tag[j] == 762)) {
@@ -726,16 +782,20 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// }
 
 			// energy rate -- project velocity onto force vector
+			// 计算 deltaE，即 sumForces 与 dv 的点积
 			deltaE = sumForces.dot(dv);
 
 			// apply forces to pair of particles
+			// 更新力数组 f 的第 i 项
 			f[i][0] += sumForces(0);
 			f[i][1] += sumForces(1);
 			f[i][2] += sumForces(2);
+			// 更新能量变化数组 de 的第 i 项
 			de[i] += deltaE;
 
 			// tally atomistic stress tensor
 			if (evflag) {
+				// 调用函数 ev_tally_xyz 进行应力张量计算
 				ev_tally_xyz(i, j, nlocal, 0, 0.0, 0.0, sumForces(0), sumForces(1), sumForces(2), dx(0), dx(1), dx(2));
 			}
 
@@ -822,6 +882,7 @@ void PairTlsph::AssembleStress() {
 	Matrix3d sigma_rate, eye, sigmaInitial, sigmaFinal, T, T_damaged, Jaumann_rate, sigma_rate_check;
 	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain, deltaSigma;
 	Vector3d vi;
+	// 获取 TLS 粒子参考配置的刚度矩阵指针
 	Matrix3d *K = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K;
 
 	eye.setIdentity();
@@ -829,16 +890,17 @@ void PairTlsph::AssembleStress() {
 	pFinal = 0.0;
 
 	for (i = 0; i < nlocal; i++) {
-		particle_dt[i] = 0.0;
+		particle_dt[i] = 0.0;// 初始化粒子的时间步长为0
 
-		itype = type[i];
-		if (setflag[itype][itype] == 1) {
+		itype = type[i];// 获取粒子的类型
+		if (setflag[itype][itype] == 1) {// 检查该粒子的类型是否被设置
 			if (mol[i] > 0) { // only do the following if particle has not failed -- mol < 0 means particle has failed
 
 				/*
 				 * initial stress state: given by the unrotateted Cauchy stress.
 				 * Assemble Eigen 3d matrix from stored stress state
 				 */
+				// 组装初始应力矩阵sigmaInitial
 				sigmaInitial(0, 0) = tlsph_stress[i][0];
 				sigmaInitial(0, 1) = tlsph_stress[i][1];
 				sigmaInitial(0, 2) = tlsph_stress[i][2];
@@ -855,65 +917,84 @@ void PairTlsph::AssembleStress() {
 				sigmaInitial_dev = Deviator(sigmaInitial);
 				d_iso = D[i].trace(); // volumetric part of stretch rate拉伸率的体积部分 论文伪代码中24行
 				d_dev = Deviator(D[i]); // deviatoric part of stretch rate拉伸率的偏差部分
-				Matrix3d FtF = Fincr[i].transpose() * Fincr[i];
-				strain = 0.5 * (FtF - eye);
+				Matrix3d FtF = Fincr[i].transpose() * Fincr[i];// 增量变形梯度的转置乘以自身
+				strain = 0.5 * (FtF - eye);// 应变张量
 				mass_specific_energy = e[i] / rmass[i]; // energy per unit mass单位质量的能量
-				rho[i] = rmass[i] / (detF[i] * vfrac[i]);
-				//rho[i] = rmass[i] / (sqrt(FtF.determinant()) * vfrac[i]);
-				vol_specific_energy = mass_specific_energy * rho[i]; // energy per current volume
+				rho[i] = rmass[i] / (detF[i] * vfrac[i]);// 当前体积下的密度
+				//rho[i] = rmass[i] / (sqrt(FtF.determinant()) * vfrac[i]); 另一种计算密度的方法（注释掉的代码）
+				vol_specific_energy = mass_specific_energy * rho[i]; // 单位体积的能量
 
 				/*
 				 * pressure: compute pressure rate p_rate and final pressure pFinal
+				 压力：计算压力速率p_rate和最终压力pFinal
 				 */
 
 				ComputePressure(i, rho[i], mass_specific_energy, vol_specific_energy, pInitial, d_iso, pFinal, p_rate);
-
+				// 计算压力和压力速率
 				/*
-				 * material strength
+				 * material strength材料强度
 				 */
 
 				//cout << "this is the strain deviator rate" << endl << d_dev << endl;
+				// 计算应力偏量（deviatoric stress），这是一个与体积变形无关的应力分量
 				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, pInitial, pFinal);
 				//cout << "this is the stress deviator rate" << endl << sigma_dev_rate << endl;
 
 				// keep a rolling average of the plastic strain rate over the last 100 or so timesteps
+				// 累积塑性应变的滚动平均值，覆盖最后100个时间步长
 				eff_plastic_strain[i] += plastic_strain_increment;
 				if (eff_plastic_strain[i] < 0.0) {
+					// 如果累积塑性应变小于0，打印调试信息
 				  printf("eff_plastic_strain[%d] = %f, plastic_strain_increment = %f\n", atom->tag[i], eff_plastic_strain[i], plastic_strain_increment);
 				}
 
 				// compute a characteristic time over which to average the plastic strain计算平均塑性应变的特征时间
 				double tav = 1000 * radius[i] / (Lookup[SIGNAL_VELOCITY][itype]);
+				// 更新塑性应变率，使用指数加权移动平均法
 				eff_plastic_strain_rate[i] -= eff_plastic_strain_rate[i] * dt / tav;
 				eff_plastic_strain_rate[i] += plastic_strain_increment / tav;
+				// 确保塑性应变率非负
 				eff_plastic_strain_rate[i] = MAX(0.0, eff_plastic_strain_rate[i]);
 
 				/*
-				 *  assemble total stress from pressure and deviatoric stress
+				 *  assemble total stress from pressure and deviatoric stress从压力和偏应力组装总应力
 				 */
-				sigmaFinal = pFinal * eye + sigmaFinal_dev; // this is the stress that is kept
+				sigmaFinal = pFinal * eye + sigmaFinal_dev; // this is the stress that is kept 这是保持的应力
 
 				if (JAUMANN) {
 					/*
 					 * sigma is already the co-rotated Cauchy stress.
 					 * The stress rate, however, needs to be made objective.
-					 */
+					 *     /*
+     * 如果使用Jaumann应力更新算法
+     * 应力已经是共转Cauchy应力。
+     * 然而，应力率需进行客观化处理。
+     */
 
 					if (dt > 1.0e-16) {
+						// 计算应力率
 						sigma_rate = (1.0 / dt) * (sigmaFinal - sigmaInitial);
 					} else {
 						sigma_rate.setZero();
 					}
 
 					//这段代码涉及到材料中的Jaumann应力更新算法
-					Jaumann_rate = sigma_rate + W[i] * sigmaInitial + sigmaInitial * W[i].transpose();//J
+					// Jaumann应力率更新公式
+					Jaumann_rate = sigma_rate + W[i] * sigmaInitial + sigmaInitial * W[i].transpose();
+					// 更新最终应力
 					sigmaFinal = sigmaInitial + dt * Jaumann_rate;
+					// 存储更新后的应力
 					T = sigmaFinal;
 				} else {
 					/*
 					 * sigma is the unrotated stress.
 					 * need to do forward rotation of the unrotated stress sigma to the current configuration
 					 */
+					    /*
+     * 如果不使用Jaumann更新算法
+     * 应力是未旋转的应力。
+     * 需要将未旋转的应力前向旋转到当前配置。
+     */
 					T = R[i] * sigmaFinal * R[i].transpose();
 				}
 
@@ -1023,30 +1104,47 @@ void PairTlsph::AssembleStress() {
  ------------------------------------------------------------------------- */
 
 void PairTlsph::allocate() {
-	allocated = 1;
-	int n = atom->ntypes;
+    // 标记分配状态为1，表示已经分配
+    allocated = 1;
 
-	memory->create(setflag, n + 1, n + 1, "pair:setflag");
-	for (int i = 1; i <= n; i++)
-		for (int j = i; j <= n; j++)
-			setflag[i][j] = 0;
+    // 获取原子类型的数量
+    int n = atom->ntypes;
 
-	memory->create(strengthModel, n + 1, "pair:strengthmodel");
-	memory->create(eos, n + 1, "pair:eosmodel");
-	failureModel = new failure_types[n + 1];
-	memory->create(Lookup, MAX_KEY_VALUE, n + 1, "pair:LookupTable");
+    // 创建并初始化setflag数组，用于记录是否设置了特定类型间的参数
+    memory->create(setflag, n + 1, n + 1, "pair:setflag");
+    for (int i = 1; i <= n; ++i) {
+        for (int j = i; j <= n; ++j) {
+            setflag[i][j] = 0;  // 初始化为0，表示未设置
+        }
+    }
 
-	memory->create(cutsq, n + 1, n + 1, "pair:cutsq"); // always needs to be allocated, even with granular neighborlist
+    // 创建并初始化 strengthModel 数组，用于存储强度模型
+    memory->create(strengthModel, n + 1, "pair:strengthmodel");
 
-	onerad_dynamic = new double[n + 1];
-	onerad_frozen = new double[n + 1];
-	maxrad_dynamic = new double[n + 1];
-	maxrad_frozen = new double[n + 1];
+    // 创建并初始化 eos 数组，用于存储状态方程（Equation of State）模型
+    memory->create(eos, n + 1, "pair:eosmodel");
 
-	memory->create(nrecv,comm->nprocs,"pair_tlsph:nrecv");
-	memory->create(buf_send,maxsend + BUFEXTRA,"pair_tlsph:buf_send");
-	memory->create(buf_recv,maxrecv + BUFEXTRA,"pair_tlsph:buf_recv");
+    // 分配 failureModel 数组，用于存储故障模式数据
+    failureModel = new failure_types[n + 1];
 
+    // 创建并初始化 Lookup 数组，用于查找表
+    memory->create(Lookup, MAX_KEY_VALUE, n + 1, "pair:LookupTable");
+
+    // 创建并初始化 cutsq 数组，用于存储截断距离的平方
+    memory->create(cutsq, n + 1, n + 1, "pair:cutsq");
+
+    // 分配并初始化动态半径数组和冻结半径数组
+    onerad_dynamic = new double[n + 1];  // 动态状态下的单体半径
+    onerad_frozen = new double[n + 1];   // 冻结状态下的单体半径
+    maxrad_dynamic = new double[n + 1];  // 动态状态下的最大半径
+    maxrad_frozen = new double[n + 1];   // 冻结状态下的最大半径
+
+    // 创建并初始化接收缓冲区大小数组
+    memory->create(nrecv, comm->nprocs, "pair_tlsph:nrecv");
+
+    // 创建并初始化发送缓冲区和接收缓冲区
+    memory->create(buf_send, maxsend + BUFEXTRA, "pair_tlsph:buf_send");
+    memory->create(buf_recv, maxrecv + BUFEXTRA, "pair_tlsph:buf_recv");
 }
 
 /* ----------------------------------------------------------------------
