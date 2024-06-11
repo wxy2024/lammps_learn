@@ -2339,7 +2339,6 @@ void PairTlsph::init_list(int id, NeighList *ptr) {
  memory usage of local atom-based arrays
  基于局部原子的数组的内存使用量
  ------------------------------------------------------------------------- */
-
 double PairTlsph::memory_usage() {
 
 	return 118 * nmax * sizeof(double);
@@ -2621,26 +2620,42 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
  ------------------------------------------------------------------------- */
 void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_energy, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev,
 				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, double &pFinal) {
+	// 获取原子系统中的有效塑性应变数组
 	double *eff_plastic_strain = atom->eff_plastic_strain;
+	// 获取原子系统中的有效塑性应变速率数组
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
+	// 获取原子系统中的原子类型数组
 	int *type = atom->type;
+	// 获取原子系统中的原子质量数组
 	double *rmass = atom->rmass;
-//double *vfrac = atom->vfrac;
+	// 由于 vfrac 被注释掉，这里先跳过，可能是与体积分数有关的变量
+	// double *vfrac = atom->vfrac;
+	// 获取原子系统中的内部能量数组
 	double *e = atom->e;
+	// 获取当前更新步骤的时间步长
 	double dt = update->dt;
+	// 声明一个变量用于储存当前粒子的类型
 	int itype;
+	// 获取原子系统中的损伤数组
 	double *damage = atom->damage;
+	// 获取原子系统中的初始损伤值数组
 	double *damage_init = atom->damage_init;
+	// 初始化塑性应变增量为 0
 	plastic_strain_increment = 0.0;
+	// 获取当前粒子的类型
 	itype = type[i];
+	// 声明一个变量 d，可能用于后续的计算
 	double d;
+	// 声明一个变量用于储存屈服应力
 	double yieldStress;
-
 
 	switch (strengthModel[itype]) {
 	case STRENGTH_LINEAR:
 
+		// 计算应力增长率
 		sigma_dev_rate = 2.0 * Lookup[SHEAR_MODULUS][itype] * d_dev;
+
+		// 计算最终应力，加上初始应力和时间步长乘以应力增长率
 		sigmaFinal_dev = sigmaInitial_dev + dt * sigma_dev_rate;
 
 		break;
@@ -2654,40 +2669,57 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		break;
 	case STRENGTH_LINEAR_PLASTIC:
 		if (failureModel[itype].failure_gtn) {
+		  // 如果使用GTN模型，调用GTNStrength函数计算损伤增量
 		  damage_increment[i] =  GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
 					   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 					   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 					   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, atom->tag[i]);
+		// 更新粒子的累积损伤值
 		  damage[i] += damage_increment[i];
 
 		  double deltat_damage;
-
+			// 计算新的时间步长，以确保数值稳定性
 		  if (damage_increment[i] > 0.0) deltat_damage = dt / (100 * damage_increment[i]);
+		    // 更新粒子的时间步长，选择当前时间步长和新的时间步长中的最小值
 		  particle_dt[i] = MIN(particle_dt[i], deltat_damage);
 
 		} else {
+	      // 计算屈服应力
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
+    	  // 调用LinearPlasticStrength函数计算线性塑性强度		  
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 					sigma_dev_rate, plastic_strain_increment, damage[i]);
 		}
 		break;
-	case STRENGTH_LUDWICK_HOLLOMON:
-		if (failureModel[itype].failure_gtn == true) {
-		  damage_increment[i] =  GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
-					   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
-					   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
-					   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, atom->tag[i]);
-		  damage[i] += damage_increment[i];
-		} else {
-		  
-		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
-		  
-		  if (yieldStress != Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]))
-		    printf("ERROR: yieldStress = %.10e != %.10e", yieldStress, Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]));
-		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-					sigma_dev_rate, plastic_strain_increment, damage[i]);
-		}
-		break;
+case STRENGTH_LUDWICK_HOLLOMON:
+    // 检查是否使用GTN（Gurson-Tvergaard-Needleman）损伤模型
+    if (failureModel[itype].failure_gtn == true) {
+        // 如果使用GTN模型，调用GTNStrength函数计算损伤增量
+        damage_increment[i] = GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
+                                          Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype],
+                                          Lookup[GTN_inverse_sN][itype], Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i],
+                                          eff_plastic_strain[i], sigmaInitial_dev, d_dev, pInitial, pFinal, sigmaFinal_dev,
+                                          sigma_dev_rate, plastic_strain_increment, atom->tag[i]);
+        // 更新粒子的累积损伤值
+        damage[i] += damage_increment[i];
+    } else {
+        // 如果不使用GTN模型，则计算屈服应力
+        yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
+
+        // 验证计算得到的屈服应力是否与Ludwick-Hollomon模型一致
+        // Ludwick-Hollomon模型：yieldStress = A + B * (effectivePlasticStrain)^n
+        if (yieldStress != Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype])) {
+            // 如果不一致，输出错误信息
+            printf("ERROR: yieldStress = %.10e != %.10e", yieldStress,
+                   Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]));
+        }
+
+        // 调用LinearPlasticStrength函数计算线性塑性强度
+        LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
+                              sigma_dev_rate, plastic_strain_increment, damage[i]);
+    }
+    // 跳出switch语句继续执行后续代码
+    break;
 	case STRENGTH_SWIFT:
 		if (failureModel[itype].failure_gtn) {
 		  damage_increment[i] =  GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
@@ -3369,7 +3401,6 @@ void PairTlsph::coeff_init(int itype){
 void PairTlsph::setup() {
   //printf("In PairTlsph::setup()\n");
 }
-
 
 void PairTlsph::forward_comm_pair_tl() {
   int n_missing_all = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->n_missing_all;
