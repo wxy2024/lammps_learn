@@ -64,7 +64,7 @@ using namespace SMD_Math;
 #define BUFEXTRA 1000
 /*"smd/tlsph" 样式根据连续介质力学本构定律和全拉格朗日平滑粒子流体动力学算法计算粒子之间的相互作用。*/
 /* ---------------------------------------------------------------------- */
-	//构造函数
+//构造函数
 PairTlsph::PairTlsph(LAMMPS *lmp) :
 		Pair(lmp) {
 	//粒子半径或相关属性有关的指针
@@ -175,11 +175,9 @@ PairTlsph::~PairTlsph() {
 }
 
 /* ----------------------------------------------------------------------
- *
  * use half neighbor list to re-compute shape matrix
- *
+ * 使用半邻居列表重新计算形状矩阵
  ---------------------------------------------------------------------- */
-
 void PairTlsph::PreCompute() {
     // 原子属性和变量初始化
 	tagint *mol = atom->molecule;  // 原子所属分子的标签数组
@@ -283,6 +281,7 @@ void PairTlsph::PreCompute() {
 
 
 				// distance vectors in current and reference configuration, velocity difference
+				//在当前配置和参考配置中的距离向量，速度差异。
 				// initialize Eigen data structures from LAMMPS data structures without for loop to maximize memory performance
 				x0j(0) = x0[j][0]; // 将原子j的参考位置x坐标从LAMMPS数据结构转换为Eigen数据结构
 				x0j(1) = x0[j][1]; // 将原子j的参考位置y坐标从LAMMPS数据结构转换为Eigen数据结构
@@ -350,8 +349,9 @@ void PairTlsph::PreCompute() {
 				if (damage[j]<1.0) numNeighsRefConfig[i]++;
 			} // end loop over j
 			// normalize average velocity field around an integration point
+			//对积分点周围的平均速度场进行归一化
 			// 归一化原子周围的速度场
-			if (shepardWeight > 0.0) {//归一化i原子周围的速度场，为什么？
+			if (shepardWeight > 0.0) {
 				shepardWeightInv[i] = 1.0/shepardWeight;
 				smoothVelDifference[i] *= shepardWeightInv[i];
 			} else {
@@ -361,7 +361,7 @@ void PairTlsph::PreCompute() {
 
 			Fdot[i] *= K[i];//用形状矩阵修正变形梯度的导数(8)
 			Fincr[i] *= K[i];//用形状矩阵修正变形梯度(7)
-			Fincr[i].noalias() += eye;//为什么？
+			Fincr[i].noalias() += eye;//为了在计算中引入一个单位矩阵所代表的量
 
 			if (JAUMANN) {
 				R[i].setIdentity(); // for Jaumann stress rate, we do not need a subsequent rotation back into the reference configuration
@@ -369,6 +369,7 @@ void PairTlsph::PreCompute() {
 			} else {
 				//分解为拉伸和旋转
 				status = PolDec(Fincr[i], R[i], U, false); // polar decomposition of the deformation gradient, F = R * U
+				//形变梯度的极分解将形变梯度 ( F ) 分解为两个独立的变换：一个旋转 ( R ) 和一个拉伸 ( U )。
 				if (!status) {
 				  cout << "Here is Fincr[" << tag[i] << "]:" << endl << Fincr[i] << endl;
 				  cout << "Here is K[" << tag[i] << "]:" << endl << K[i] << endl;
@@ -380,34 +381,45 @@ void PairTlsph::PreCompute() {
 			}
 
 			detF[i] = Fincr[i].determinant();
-			FincrInv[i] = Fincr[i].inverse();
+			FincrInv[i] = Fincr[i].inverse();//计算了变形梯度增量的逆矩阵
 
-			// velocity gradient
-			L = Fdot[i] * FincrInv[i];//求速度梯度
+			// velocity gradient 速度梯度
+			L = Fdot[i] * FincrInv[i];
 
-			// symmetric (D) and asymmetric (W) parts of L
+			// symmetric (D) and asymmetric (W) parts of L "L 的对称部分 (D) 和非对称部分 (W)"
 			D[i] = 0.5 * (L + L.transpose());//求应变率 论文伪代码22行
 			W[i] = 0.5 * (L - L.transpose()); //自旋张量 spin tensor:: need this for Jaumann rate
 
 			// unrotated rate-of-deformation tensor d, see right side of Pronto2d, eqn.(2.1.7)
+			//该代码是关于速率形变张量 ( d ) 的，参见 Pronto2d 中的方程 (2.1.7) 的右侧。
 			// convention: unrotated frame is that one, where the true rotation of an integration point has been subtracted.
+			//约定：未旋转的坐标系是指一个，在此坐标系中，一个积分点的真实旋转已经被减去。
 			// stress in the unrotated frame of reference is denoted sigma (stress seen by an observer doing rigid body rotations along with the material)
+			//在未旋转的参考坐标系中的应力用 ( \sigma ) 表示（由一个随着材料一起做刚体旋转的观察者看到的应力）。
 			// stress in the true frame of reference (a stationary observer) is denoted by T, "true stress"
+			//在真实的参考坐标系中的应力（一个静止的观察者）用 ( T ) 表示，“真实应力”。
 			D[i] = (R[i].transpose() * D[i] * R[i]).eval();//消除刚体旋转分量的应变率
 
-			// limit strain rate
+			// limit strain rate 极限应变率
 			//double limit = 1.0e-3 * Lookup[SIGNAL_VELOCITY][itype] / radius[i];
 			//D[i] = LimitEigenvalues(D[i], limit);
 
 			/*
 			 * make sure F stays within some limits
+			   确保 F 保持在某些限度内
 			 */
 
 			if (numNeighsRefConfig[i] == 0) {
-			  printf("deleting particle [%d] because nn = %d\n", tag[i], numNeighsRefConfig[i]);
-			  dtCFL = MIN(dtCFL, dt); //Keep the same (small) time step when a particule breaks.		       
-			  mol[i] = -mol[i];
+    			// 如果粒子的相邻参考配置数量为0，意味着该粒子没有邻居
+    			printf("deleting particle [%d] because nn = %d\n", tag[i], numNeighsRefConfig[i]);
+    			// 打印一条消息，说明删除了哪个粒子及其原因（没有邻居）
+    			dtCFL = MIN(dtCFL, dt);
+    			// 更新时间步长为当前时间步长和dt之间的最小值，以保持较小的时间步长
+    			// 这样做是为了在粒子被删除的情况下保持模拟的稳定性
+    			mol[i] = -mol[i];
+    			// 将粒子某种属性（可能是标记、状态或方向）取反，用于标记该粒子已经被处理或删除
 			}
+
 
 			if (mol[i] < 0) {//极性分解失败则重置原子参数
 				D[i].setZero();
@@ -860,6 +872,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
  assemble unrotated stress tensor using deviatoric and pressure components.
  Convert to corotational Cauchy stress, then to PK1 stress and apply
  shape matrix correction
+使用去除旋转的应变率和压力分量组装无旋转应力张量。
+将其转换为共旋应力张量，然后转换为PK1应力，并应用形状矩阵校正。
  ------------------------------------------------------------------------- */
 void PairTlsph::AssembleStress() {
 	tagint *mol = atom->molecule;
@@ -1101,6 +1115,7 @@ void PairTlsph::AssembleStress() {
 
 /* ----------------------------------------------------------------------
  allocate all arrays
+ 分配所有数组
  ------------------------------------------------------------------------- */
 
 void PairTlsph::allocate() {
@@ -1149,6 +1164,7 @@ void PairTlsph::allocate() {
 
 /* ----------------------------------------------------------------------
  global settings
+ 全局设置
  ------------------------------------------------------------------------- */
 
 void PairTlsph::settings(int narg, char **arg) {
@@ -1234,6 +1250,7 @@ void PairTlsph::settings(int narg, char **arg) {
 
 /* ----------------------------------------------------------------------
  set coeffs for one or more type pairs
+ 为一个或多个类型对设置系数
  ------------------------------------------------------------------------- */
 
 void PairTlsph::coeff(int narg, char **arg) {
@@ -2219,6 +2236,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 /* ----------------------------------------------------------------------
  init for one type pair i,j and corresponding j,i
+ 为一个类型对 (i,j) 及其对应的 (j,i) 进行初始化
  ------------------------------------------------------------------------- */
 
 double PairTlsph::init_one(int i, int j) {
@@ -2244,8 +2262,8 @@ double PairTlsph::init_one(int i, int j) {
 
 /* ----------------------------------------------------------------------
  init specific to this pair style
+ 针对这种对类型进行特定初始化
  ------------------------------------------------------------------------- */
-
 void PairTlsph::init_style() {
 	int i;
 
@@ -2306,8 +2324,12 @@ void PairTlsph::init_style() {
 /* ----------------------------------------------------------------------
  neighbor callback to inform pair style of neighbor list to use
  optional granular history list
- ------------------------------------------------------------------------- */
+邻居回调，通知成对样式使用的邻居列表
+可选择的颗粒历史列表
 
+邻居回调：这是一个通知功能，告诉当前计算粒子相互作用的方式，哪些粒子是彼此的邻居。
+可选择的颗粒历史列表：这是一个可选功能，用于记录和跟踪粒子之间的历史交互信息。
+ ------------------------------------------------------------------------- */
 void PairTlsph::init_list(int id, NeighList *ptr) {
 	if (id == 0)
 		list = ptr;
@@ -2315,6 +2337,7 @@ void PairTlsph::init_list(int id, NeighList *ptr) {
 
 /* ----------------------------------------------------------------------
  memory usage of local atom-based arrays
+ 基于局部原子的数组的内存使用量
  ------------------------------------------------------------------------- */
 
 double PairTlsph::memory_usage() {
@@ -2324,6 +2347,7 @@ double PairTlsph::memory_usage() {
 
 /* ----------------------------------------------------------------------
  extract method to provide access to this class' data structures
+ 提取方法以便访问该类的数据结构
  ------------------------------------------------------------------------- */
 
 void *PairTlsph::extract(const char *str, int &i) {
@@ -2470,6 +2494,7 @@ void PairTlsph::unpack_forward_comm(int n, int first, double *buf) {
 /* ----------------------------------------------------------------------
  compute effective P-wave speed
  determined by longitudinal modulus
+ 计算有效的P波速度，由纵向模量决定
  ------------------------------------------------------------------------- */
 
 void PairTlsph::effective_longitudinal_modulus(const int itype, const double dt, const double d_iso, const double p_rate,
@@ -2552,6 +2577,7 @@ void PairTlsph::effective_longitudinal_modulus(const int itype, const double dt,
 
 /* ----------------------------------------------------------------------
  compute pressure. Called from AssembleStress().
+ 计算压力。从 AssembleStress() 调用。
  ------------------------------------------------------------------------- */
 void PairTlsph::ComputePressure(const int i, const double rho, const double mass_specific_energy, const double vol_specific_energy,
 	const double pInitial, const double d_iso, double &pFinal, double &p_rate) {
@@ -2591,6 +2617,7 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 
 /* ----------------------------------------------------------------------
  Compute stress deviator. Called from AssembleStress().
+ 计算应力偏差。从 AssembleStress() 调用。
  ------------------------------------------------------------------------- */
 void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_energy, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev,
 				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, double &pFinal) {
@@ -2717,6 +2744,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 
 /* ----------------------------------------------------------------------
  Compute damage. Called from AssembleStress().
+ 计算损伤。从 AssembleStress() 调用。
  ------------------------------------------------------------------------- */
 void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d stress, Matrix3d &stress_damaged, double plastic_strain_increment) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
