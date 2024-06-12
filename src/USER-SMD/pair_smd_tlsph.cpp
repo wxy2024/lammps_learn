@@ -339,9 +339,10 @@ void PairTlsph::PreCompute() {
 				//虚拟原子 这两个权重分别代表什么？？？
 
 				/* build matrices */;
-
-				Fdot[i].noalias() -= dv * g.transpose();//（8）更新变形矩阵的导数
-				Fincr[i].noalias() -= (dx - dx0) * g.transpose();//（7）更新变形矩阵
+				//（8）更新变形矩阵的导数
+				Fdot[i].noalias() -= dv * g.transpose();
+				//（7）更新变形矩阵的增量从而更新变形矩阵
+				Fincr[i].noalias() -= (dx - dx0) * g.transpose();
 				// 累积变形程度的加权和
 				shepardWeight += vwf;//这是累计变形程度的意思？
 				smoothVelDifference[i].noalias() += vwf * dvint;
@@ -382,7 +383,6 @@ void PairTlsph::PreCompute() {
 
 			detF[i] = Fincr[i].determinant();
 			FincrInv[i] = Fincr[i].inverse();//计算了变形梯度增量的逆矩阵
-
 			// velocity gradient 速度梯度
 			L = Fdot[i] * FincrInv[i];
 
@@ -398,7 +398,8 @@ void PairTlsph::PreCompute() {
 			//在未旋转的参考坐标系中的应力用 ( \sigma ) 表示（由一个随着材料一起做刚体旋转的观察者看到的应力）。
 			// stress in the true frame of reference (a stationary observer) is denoted by T, "true stress"
 			//在真实的参考坐标系中的应力（一个静止的观察者）用 ( T ) 表示，“真实应力”。
-			D[i] = (R[i].transpose() * D[i] * R[i]).eval();//消除刚体旋转分量的应变率
+			//消除刚体旋转分量的应变率
+			D[i] = (R[i].transpose() * D[i] * R[i]).eval();
 
 			// limit strain rate 极限应变率
 			//double limit = 1.0e-3 * Lookup[SIGNAL_VELOCITY][itype] / radius[i];
@@ -666,7 +667,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			dv = vj - vi;
 			// 根据失败模型的集成方式对速度和位移进行调整
 			if (failureModel[itype].integration_point_wise == true) {
-			  if (damage[j] > 0.0) {//这是在干嘛
+			  if (damage[j] > 0.0) {
 			    dv *= (1-damage[j]);
 			    dx = partnerdx[i][jj];
 			  }
@@ -677,7 +678,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			vwf = volj * wf_list[i][jj];
 			wfd = wfd_list[i][jj];
 			g = g_list[i][jj]; // uncorrected kernel gradient 未校正的核梯度
-
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
@@ -715,12 +715,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 						计算粘滞力
 						f_visc = rmass[i] * rmass[j] * visc_magnitude * wfd * dx / (r + 1.0e-2 * h);
 						最后，根据粘滞力的大小、粒子质量和距离等参数计算了粘滞力的矢量值，单位是N。*/
-                        delVdotDelR = dx.dot(dv) / (r + 0.1 * h); // project relative velocity onto unit particle distance vector [m/s]
-																  //将相对速度投影到单位粒子距离矢量上 [m/s]
-                        //LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
-                        mu_ij = h * delVdotDelR / (r + 0.1 * h); // units: [m * m/s / m = m/s]
-                        visc_magnitude = (-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij
-					  + Lookup[VISCOSITY_Q2][itype] * mu_ij * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
+			//将相对速度投影到单位粒子距离矢量上 [m/s]
+            delVdotDelR = dx.dot(dv) / (r + 0.1 * h); // project relative velocity onto unit particle distance vector [m/s]
+            //LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
+            mu_ij = h * delVdotDelR / (r + 0.1 * h); // units: [m * m/s / m = m/s]
+            visc_magnitude = (-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij+ Lookup[VISCOSITY_Q2][itype] * mu_ij * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
 			f_visc = rmass[i] * rmass[j] * visc_magnitude * wfd * dx / (r + 1.0e-2 * h); // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
 
 			/*
@@ -732,6 +731,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			2.更新每个粒子的小时玻璃误差：将vwf乘以hg_err，然后加到hourglass_error[i]上。
 			3.更新最大粘滞率：计算最大粘滞率max_mu_ij[i]，
 			其值为max_mu_ij[i]和(Lookup[VISCOSITY_Q1][itype] + hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype]) * fabs(mu_ij)中较大的一个。*/
+
+
 			// 获取参考距离 r0_，即 r0[i][jj]
 			r0_ = r0[i][jj];
 			// 计算 gamma，使用增量力 Fincr 和初始位移向量 dx0 以及当前位移向量 dx
@@ -744,10 +745,13 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			max_mu_ij[i] = MAX(max_mu_ij[i], (Lookup[VISCOSITY_Q1][itype] + hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype])*fabs(mu_ij));
 
             /* SPH-like hourglass formulation */
+			//类SPH时钟形变公式
+
 			// 检查塑性应变是否大于 1.0e-3，以选择不同的处理方法
             if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 			  /*
 			   * viscous hourglass formulation for particles with plastic deformation
+			   考虑粒子塑性变形的粘性时钟形变公式
 			   */
 			  // 如果塑性应变大于阈值，进行相应处理
 			  delta = gamma.dot(dx);// 计算 delta，即 gamma 与 dx 的点积
@@ -767,26 +771,30 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			}
 			  /*
 			   * stiffness hourglass formulation for particle in the elastic regime
+			   考虑粒子在弹性区域内的刚度时钟形变公式
 			   */
-
+			  // 计算时钟误差向量与粒子间距离向量的点积投影
 			  gamma_dot_dx = gamma.dot(dx); // project hourglass error vector onto pair distance vector
-			  //LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
+
+			  // 计算修正量 delta，用于修正时钟误差
 			  delta = 0.5 * gamma_dot_dx / (r + 0.1 * h); // delta has dimensions of [m]
+
+			  // 计算时钟力幅度 hg_mag
 			  hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta / (r0_*r0_ + 0.01 * h * h); // hg_mag has dimensions [m^(-1)]
+
+			  // 如果塑性应变超过阈值，则使用流动应力斜率来调节 hg_mag，否则使用杨氏模量来调节
 			  if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 			    hg_mag *= -voli * volj * wf * 0.5 * (flowstress_slope[i] + flowstress_slope[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
-			    
 			  } else {
 			    hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // hg_mag has dimensions [J*m^(-1)] = [N]
 			  }
-			  f_hg += (hg_mag / (r + 0.01 * h)) * dx;// 更新 f_hg
+			  // 更新时钟力 f_hg
+			  f_hg += (hg_mag / (r + 0.01 * h)) * dx;
 
-            // scale hourglass force with damage
-			// 根据 damage 数组修正 f_hg
+			// 根据损伤修正时钟力
 			f_hg *= (1.0 - damage[i]) * (1.0 - damage[j]);
 
-			// sum stress, viscous, and hourglass forces
-			// 计算 sumForces，即 f_stress、f_visc 和 f_hg 的和
+			// 计算总力，包括应力力、粘性力和时钟力
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
 			// if ((tag[i] == 762 && tag[j] == 570)||(tag[i] == 570 && tag[j] == 762)) {
@@ -794,42 +802,43 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// }
 
 			// energy rate -- project velocity onto force vector
-			// 计算 deltaE，即 sumForces 与 dv 的点积
+			// 计算能量变化率
 			deltaE = sumForces.dot(dv);
 
 			// apply forces to pair of particles
 			// 更新力数组 f 的第 i 项
-			f[i][0] += sumForces(0);
-			f[i][1] += sumForces(1);
-			f[i][2] += sumForces(2);
+			f[i][0] += sumForces(0);  // 更新 x 方向的力
+			f[i][1] += sumForces(1);  // 更新 y 方向的力
+			f[i][2] += sumForces(2);  // 更新 z 方向的力
 			// 更新能量变化数组 de 的第 i 项
-			de[i] += deltaE;
+			de[i] += deltaE;// 更新能量变化
 
-			// tally atomistic stress tensor
+			// tally atomistic stress tensor - 计算原子应力张量
 			if (evflag) {
 				// 调用函数 ev_tally_xyz 进行应力张量计算
 				ev_tally_xyz(i, j, nlocal, 0, 0.0, 0.0, sumForces(0), sumForces(1), sumForces(2), dx(0), dx(1), dx(2));
 			}
 
-			// check if a particle has moved too much w.r.t another particle
-			if (r > r0_) {
+			// check if a particle has moved too much w.r.t another particle -检查一个粒子相对于另一个粒子是否移动过大
+			if (r > r0_) { // 如果当前距离大于初始距离
 				if (update_method == UPDATE_CONSTANT_THRESHOLD) {
-					if (r - r0_ > update_threshold) {
-						updateFlag = 1;
+					if (r - r0_ > update_threshold) {// 如果距离变化超过常数阈值
+						updateFlag = 1; // 设置更新标志
 					}
 				} else if (update_method == UPDATE_PAIRWISE_RATIO) {
-					if ((r - r0_) / h > update_threshold) {
-						updateFlag = 1;
+					if ((r - r0_) / h > update_threshold) { // 如果距离变化相对于网格尺寸的比率超过阈值
+						updateFlag = 1;// 设置更新标志
 					}
 				}
 			}
-
+			// 如果指定的粒子类型具有失效模型的能量释放率
 			if (failureModel[itype].failure_energy_release_rate) {
+				// 计算并累积每个键上的能量释放
 			  energy_per_bond[i][jj] += update->dt * f_stress.dot(dv) / (voli * volj);
 			}
 
 		} // end loop over jj neighbors of i
-		
+		// jj 是 i 的邻居循环结束
 		// if (tag[i] == 18268)
 		//   printf("Step %d, COMPUTE_FORCES Particle %d: f = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], f[i][0], f[i][1], f[i][2]);
 		if (output->next_dump_any == update->ntimestep) {
@@ -971,7 +980,8 @@ void PairTlsph::AssembleStress() {
 				eff_plastic_strain_rate[i] = MAX(0.0, eff_plastic_strain_rate[i]);
 
 				/*
-				 *  assemble total stress from pressure and deviatoric stress从压力和偏应力组装总应力
+				 *  assemble total stress from pressure and deviatoric stress
+				 从压力和偏应力组装总应力
 				 */
 				sigmaFinal = pFinal * eye + sigmaFinal_dev; // this is the stress that is kept 这是保持的应力
 
@@ -980,10 +990,10 @@ void PairTlsph::AssembleStress() {
 					 * sigma is already the co-rotated Cauchy stress.
 					 * The stress rate, however, needs to be made objective.
 					 *     /*
-     * 如果使用Jaumann应力更新算法
-     * 应力已经是共转Cauchy应力。
-     * 然而，应力率需进行客观化处理。
-     */
+     					* 如果使用Jaumann应力更新算法
+     					* 应力已经是共转Cauchy应力。
+     					* 然而，应力率需进行客观化处理。
+     				*/
 
 					if (dt > 1.0e-16) {
 						// 计算应力率
@@ -994,7 +1004,8 @@ void PairTlsph::AssembleStress() {
 
 					//这段代码涉及到材料中的Jaumann应力更新算法
 					// Jaumann应力率更新公式
-					Jaumann_rate = sigma_rate + W[i] * sigmaInitial + sigmaInitial * W[i].transpose();
+					Jaumann_rate = sigma_rate + W[i] * sigmaInitial + sigmaInitial * 
+					W[i].transpose();
 					// 更新最终应力
 					sigmaFinal = sigmaInitial + dt * Jaumann_rate;
 					// 存储更新后的应力
@@ -1041,6 +1052,8 @@ void PairTlsph::AssembleStress() {
 				 * the incremental deformation gradient, not the full deformation gradient.
 				 * 转换为 PK1。请注意，用于计算力的参考构型是通过增量变形梯度而不是完全变形梯度连接的。
 				 */
+				//柯西应力转换为pk1
+				
 				PK1[i] = detF[i] * T * FincrInv[i].transpose();
 
 				/*
@@ -3145,7 +3158,6 @@ void PairTlsph::AdjustStressForZeroForceBC(const Matrix3d sigma, const Vector3d 
     cout << "Here is P :" << endl << P << endl;
   }
 }
-
 
 void PairTlsph::write_restart(FILE *fp){
 

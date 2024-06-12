@@ -50,62 +50,66 @@ using namespace std;
 
 FixSMDIntegrateTlsph::FixSMDIntegrateTlsph(LAMMPS *lmp, int narg, char **arg) :
                 Fix(lmp, narg, arg) {
-        if (narg < 3) {
-                printf("narg=%d\n", narg);
-                error->all(FLERR, "Illegal fix smd/integrate_tlsph command");
+    // 检查输入参数数量是否小于3，如果是则输出错误信息
+    if (narg < 3) {
+        printf("narg=%d\n", narg);
+        error->all(FLERR, "Illegal fix smd/integrate_tlsph command");
+    }
+
+    xsphFlag = false;  // 初始化xsphFlag为false
+    vlimit = -1.0;      // 初始化vlimit为-1.0
+    int iarg = 3;       // 初始化参数索引iarg为3
+
+    if (comm->me == 0) {
+        // 如果当前进程是0号进程，则输出相关信息
+        printf("\n>>========>>========>>========>>========>>========>>========>>========>>========\n");
+        printf("fix smd/integrate_tlsph is active for group: %s \n", arg[1]);
+    }
+
+    while (true) {
+        if (iarg >= narg) {  // 如果参数索引超出范围，则跳出循环
+            break;
         }
 
-        xsphFlag = false;
-        vlimit = -1.0;
-        int iarg = 3;
-
-        if (comm->me == 0) {
-                printf("\n>>========>>========>>========>>========>>========>>========>>========>>========\n");
-                printf("fix smd/integrate_tlsph is active for group: %s \n", arg[1]);
+        if (strcmp(arg[iarg], "xsph") == 0) {
+            // 如果参数为"xsph"，将xsphFlag设置为true，并输出相关信息（暂时不可用）
+            xsphFlag = true;
+            if (comm->me == 0) {
+                error->one(FLERR, "XSPH is currently not available");
+                printf("... will use XSPH time integration\n");
+            }
+        } else if (strcmp(arg[iarg], "limit_velocity") == 0) {
+            // 如果参数为"limit_velocity"，获取下一个参数作为限制速度的值
+            iarg++;
+            if (iarg == narg) {
+                error->all(FLERR, "expected number following limit_velocity");
+            }
+            // 将下一个参数解析为数值，作为速度限制值，并输出相关信息
+            vlimit = force->numeric(FLERR, arg[iarg]);
+            if (comm->me == 0) {
+                printf("... will limit velocities to <= %g\n", vlimit);
+            }
+        } else {
+            // 如果遇到其他未知选项，则输出错误信息
+            char msg[128];
+            sprintf(msg, "Illegal keyword for smd/integrate_tlsph: %s\n", arg[iarg]);
+            error->all(FLERR, msg);
         }
 
-        while (true) {
+        iarg++;  // 处理下一个参数
+    }
 
-                if (iarg >= narg) {
-                        break;
-                }
+    if (comm->me == 0) {
+        // 如果当前进程是0号进程，则输出相关信息
+        printf(">>========>>========>>========>>========>>========>>========>>========>>========\n");
+    }
 
-                if (strcmp(arg[iarg], "xsph") == 0) {
-                        xsphFlag = true;
-                        if (comm->me == 0) {
-                                error->one(FLERR, "XSPH is currently not available");
-                                printf("... will use XSPH time integration\n");
-                        }
-                } else if (strcmp(arg[iarg], "limit_velocity") == 0) {
-                        iarg++;
-                        if (iarg == narg) {
-                                error->all(FLERR, "expected number following limit_velocity");
-                        }
+    time_integrate = 1;  // 设置time_integrate为1
 
-                        vlimit = force->numeric(FLERR, arg[iarg]);
-                        if (comm->me == 0) {
-                                printf("... will limit velocities to <= %g\n", vlimit);
-                        }
-                } else {
-                        char msg[128];
-                        sprintf(msg, "Illegal keyword for smd/integrate_tlsph: %s\n", arg[iarg]);
-                        error->all(FLERR, msg);
-                }
-
-                iarg++;
-        }
-
-        if (comm->me == 0) {
-                printf(">>========>>========>>========>>========>>========>>========>>========>>========\n");
-        }
-
-        time_integrate = 1;
-
-        // set comm sizes needed by this fix
-
-        atom->add_callback(0);
-
+    // 设置comm sizes needed by this fix
+    atom->add_callback(0);  // 调用atom对象的add_callback函数，参数为0
 }
+
 
 /* ---------------------------------------------------------------------- */
 
@@ -119,10 +123,18 @@ int FixSMDIntegrateTlsph::setmask() {//确定要执行的操作
 /* ---------------------------------------------------------------------- */
 
 void FixSMDIntegrateTlsph::init() {
-        dtv = update->dt;
-        dtf = 0.5 * update->dt * force->ftm2v;
-        vlimitsq = vlimit * vlimit;
+    // 获取时间步长 dt 的数值并存储在变量 dtv 中
+    dtv = update->dt;
+
+    // 计算 dtf，它是时间步长 dt 和力转换因子 ftm2v 的乘积的一半
+    // force->ftm2v 是一个将力转换为速度变更的因子 转换因子 = F/m。
+    dtf = 0.5 * update->dt * force->ftm2v;
+
+    // 计算速度限制 vlimit 的平方，并存储在变量 vlimitsq 中
+    // 这个值用于在后续的速度更新中进行速度限制检查
+    vlimitsq = vlimit * vlimit;
 }
+
 
 /* ----------------------------------------------------------------------
  ------------------------------------------------------------------------- */
@@ -158,6 +170,7 @@ void FixSMDIntegrateTlsph::initial_integrate(int vflag) {
                         dtfm = dtf / rmass[i];//计算中间变量
 
                         // 1st part of Velocity_Verlet: push velocties 1/2 time increment ahead
+                        //速度Verlet算法的第一部分：将速度推进半个时间步长
                         v[i][0] += dtfm * f[i][0];//更新粒子速度
                         v[i][1] += dtfm * f[i][1];
                         v[i][2] += dtfm * f[i][2];
@@ -191,7 +204,7 @@ void FixSMDIntegrateTlsph::initial_integrate(int vflag) {
                                 x[i][2] += dtv * vxsph_z;
                         } else {
 
-                                // extrapolate velocity from half- to full-step
+                                // 从半步外推速度到全步
                                 vest[i][0] = v[i][0] + dtfm * f[i][0];//用节点力更新速度
                                 vest[i][1] = v[i][1] + dtfm * f[i][1];
                                 vest[i][2] = v[i][2] + dtfm * f[i][2];

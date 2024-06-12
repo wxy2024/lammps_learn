@@ -77,32 +77,45 @@ void ComputeSMDTLSPHDefgrad::init() {//检查合法性
 
 /* ---------------------------------------------------------------------- */
 
-void ComputeSMDTLSPHDefgrad::compute_peratom() {//计算每个原子的变形梯度
-	double **defgrad = atom->smd_data_9;//defgrad存储梯度
-	Matrix3d F;//变形梯度
+void ComputeSMDTLSPHDefgrad::compute_peratom() {
+	// 获取存储变形梯度的二维数组
+	double **defgrad = atom->smd_data_9;
+	// 定义一个3x3矩阵F用于存储变形梯度
+	Matrix3d F;
+	// 记录当前时间步
 	invoked_peratom = update->ntimestep;
 
-	// grow vector array if necessary
+	// 如果原子的最大数目超过了当前存储的最大数目，则需要扩展数组
 	if (atom->nmax > nmax) {
+		// 销毁旧的变形梯度向量数组
 		memory->destroy(defgradVector);
+		// 更新最大数目
 		nmax = atom->nmax;
+		// 创建新的变形梯度向量数组
 		memory->create(defgradVector, nmax, size_peratom_cols, "defgradVector");
+		// 将新的数组赋值给array_atom
 		array_atom = defgradVector;
 	}
 
-	// copy data to output array
+	// 临时变量，用于提取Fincr指针
 	int itmp = 0;
+	// 提取变形梯度增量矩阵数组的指针
 	Matrix3d *Fincr = (Matrix3d *) force->pair->extract("smd/tlsph/Fincr_ptr", itmp);
+	// 如果提取失败，抛出错误
 	if (Fincr == NULL) {
 		error->all(FLERR, "compute smd/tlsph_strain failed to access Fincr array");
 	}
 
+	// 获取原子的掩码数组
 	int *mask = atom->mask;
+	// 获取本地原子数
 	int nlocal = atom->nlocal;
 
-	//下面这段代码就是把所有满足条件原子的变形梯度传入，然后乘以增量（更新），然后又把所有原子更新后的变形梯度放到defgradVector里
+	// 遍历所有本地原子
 	for (int i = 0; i < nlocal; i++) {
+		// 如果原子的掩码符合组掩码条件
 		if (mask[i] & groupbit) {
+			// 将defgrad数组中的数据赋值给F矩阵
 			F(0, 0) = defgrad[i][0];
 			F(0, 1) = defgrad[i][1];
 			F(0, 2) = defgrad[i][2];
@@ -111,9 +124,12 @@ void ComputeSMDTLSPHDefgrad::compute_peratom() {//计算每个原子的变形梯
 			F(1, 2) = defgrad[i][5];
 			F(2, 0) = defgrad[i][6];
 			F(2, 1) = defgrad[i][7];
-			F(2, 2) = defgrad[i][8];//传入变形梯度
+			F(2, 2) = defgrad[i][8];
 
-			F = F * Fincr[i];//乘以变形梯度增量，以便于更新变形梯度（7）
+			// 用当前的变形梯度乘以增量变形梯度，更新变形梯度
+			F = F * Fincr[i];
+
+			// 将更新后的变形梯度存储到defgradVector数组中
 			defgradVector[i][0] = F(0, 0);
 			defgradVector[i][1] = F(0, 1);
 			defgradVector[i][2] = F(0, 2);
@@ -123,9 +139,11 @@ void ComputeSMDTLSPHDefgrad::compute_peratom() {//计算每个原子的变形梯
 			defgradVector[i][6] = F(2, 0);
 			defgradVector[i][7] = F(2, 1);
 			defgradVector[i][8] = F(2, 2);
-			defgradVector[i][9] = F.determinant();//determinant() 方法用于计算张量或矩阵的行列式值
+			// 计算变形梯度的行列式，并存储到defgradVector数组中
+			defgradVector[i][9] = F.determinant();
 		} else {
-			defgradVector[i][0] = 1.0;//将变形梯度设为单位矩阵，保证原子没有变形
+			// 如果原子不符合组掩码条件，则将变形梯度设为单位矩阵，表示原子没有变形
+			defgradVector[i][0] = 1.0;
 			defgradVector[i][1] = 0.0;
 			defgradVector[i][2] = 0.0;
 			defgradVector[i][3] = 0.0;
@@ -138,6 +156,7 @@ void ComputeSMDTLSPHDefgrad::compute_peratom() {//计算每个原子的变形梯
 		}
 	}
 }
+
 
 /* ----------------------------------------------------------------------
  memory usage of local atom-based array
