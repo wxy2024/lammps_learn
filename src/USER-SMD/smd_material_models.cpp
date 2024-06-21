@@ -639,40 +639,39 @@ bool IsotropicMaxStressDamage(const Matrix3d S, const double maxStress) {
  ------------------------------------------------------------------------- */
 
 double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const double d1, const double d2, const double d3,
-				  const double d4, const double epdot0, const double epdot, const double plastic_strain_increment) {
+                  const double d4, const double epdot0, const double epdot, const double plastic_strain_increment) {
+    // 计算 von-Mises 等效应力
+    double vm = sqrt(3. / 2.) * Sdev.norm(); // von-Mises equivalent stress
+    if (vm < 0.0) {
+        cout << "this is sdev " << endl << Sdev << endl;
+        printf("vm=%f < 0.0, surely must be an error\n", vm);
+        exit(1);
+    }
 
+    // 计算应力三轴性
+    double triax = 0.0;
+    if (p != 0.0 && vm != 0.0) {
+      triax = -p / (vm + 0.01 * fabs(p)); // 为避免除以零，分母加上软化因子0.01
+    }
+    if (triax > 3.0) {
+      triax = 3.0;
+    }
 
+    // Johnson-Cook损伤模型中的失效应变，与应力三轴性有关
+    double jc_failure_strain = d1 + d2 * exp(d3 * triax);
 
-	double vm = sqrt(3. / 2.) * Sdev.norm(); // von-Mises equivalent stress
-	if (vm < 0.0) {
-		cout << "this is sdev " << endl << Sdev << endl;
-		printf("vm=%f < 0.0, surely must be an error\n", vm);
-		exit(1);
-	}
-
-	// determine stress triaxiality
-	double triax = 0.0;
-	if (p != 0.0 && vm != 0.0) {
-	  triax = -p / (vm + 0.01 * fabs(p)); // have softening in denominator to avoid divison by zero
-	}
-	if (triax > 3.0) {                                                                                                                                                                                
-	  triax = 3.0;
-	}
-	// Johnson-Cook failure strain, dependence on stress triaxiality
-	double jc_failure_strain = d1 + d2 * exp(d3 * triax);
-
-	// include strain rate dependency if parameter d4 is defined and current plastic strain rate exceeds reference strain rate
-	if (d4 != 0.0) { //
-	    if (epdot > epdot0) {
-	      double epdot_ratio = epdot / epdot0;
-	      jc_failure_strain *= pow(1.0 + epdot_ratio, d4);
-	      //printf("epsdot=%f, epsdot0=%f, factor = %f\n", epdot, epdot0, pow(1.0 + epdot_ratio, d4)));
-	      //exit(1);
-	      
-	    }
-	}
-	return plastic_strain_increment/jc_failure_strain;
+    // 如果定义了参数 d4，并且当前塑性应变率超过参考应变率，则考虑应变速率依赖性
+    if (d4 != 0.0) {
+        if (epdot > epdot0) {
+          double epdot_ratio = epdot / epdot0;
+          jc_failure_strain *= pow(1.0 + epdot_ratio, d4);
+        }
+    }
+    
+    // 返回塑性应变增量与Johnson-Cook失效应变的比值作为损伤增量
+    return plastic_strain_increment / jc_failure_strain;
 }
+
 
 /* ----------------------------------------------------------------------
  Gurson-Tvergaard-Needleman damage evolution model
@@ -689,35 +688,41 @@ double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const dou
  ------------------------------------------------------------------------- */
 
 double GTNDamageIncrement(const double Q1, const double Q2, const double An, const double Komega, const double pressure, const Matrix3d Sdev, const Matrix3d stress, const double plastic_strain_increment, const double damage, const double fcr, const double yieldstress_undamaged) { // Following K. Nahshon, J.W. Hutchinson / European Journal of Mechanics A/Solids 27 (2008) 1–17
+  // 如果损伤达到或超过1.0，返回0.0（没有损伤增量）
   if (damage >= 1.0) return 0.0;
+  // 如果塑性应变增量为0，返回0.0（没有损伤增量）
   if (plastic_strain_increment == 0.0) return 0.0;
-
+  // 初始化空洞成核增长率增量
   double fn_increment = 0;
-
+  // 如果An不为0，计算空洞成核增长率增量
   if (An != 0) fn_increment = An * plastic_strain_increment; // rate of void nucleation
-
+  // 如果当前损伤值为0，仅返回成核增长率增量
   if (damage == 0.0) return fn_increment;
-
+  // 初始化空洞增长率增量
   double fs_increment = 0;
+  // 计算当前空洞体积分数f
   double f = damage * fcr;
+  // 定义 von-Mises 等效应力 vm，逆向屈服应力 inverse_sM，第三不变量 J3 和 omega
   double vm, inverse_sM, J3, omega;
   double lambda_increment, tmp1, sinh_tmp1;
-  
+  // 计算 von-Mises 等效应力
   vm = sqrt(3. / 2.) * Sdev.norm(); // von-Mises equivalent stress
+
   if (vm < 0.0) {
     cout << "this is sdev " << endl << Sdev << endl;
     printf("vm=%f < 0.0, surely must be an error\n", vm);
     exit(1);
   }
-  
+  // 如果 von-Mises 等效应力为0，返回0.0（没有损伤增量）
   if ( vm == 0.0 ) return 0.0;
-  
+  // 计算逆向屈服应力
   inverse_sM = 1.0/yieldstress_undamaged;
+  // 计算 Sdev 的第三不变量
   J3 = Sdev.determinant();
   //printf("vm = %f, yieldstress_undamaged = %f, J3 = %f\n", vm, yieldstress_undamaged, J3);
-  
+  // 计算 omega 参数（用于描述材料各向异性影响）
   omega = 1 - 182.25 * J3 * J3/(vm * vm * vm * vm * vm * vm);
-  
+  // 对 omega 值进行约束，如果小于0则设为0，大于1则设为1
   if (omega < 0.0) {
     // printf("omega=%.10e < 0.0, surely must be an error\n", omega);
     // cout << "vm = " << vm << "\t";
@@ -734,13 +739,16 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
     // cout << "Here is S:" << endl << Sdev << endl;
     omega = 1.0;
   }
-  
+  // 计算 tmp1 和 sinh_tmp1，用于后续的计算
   tmp1 = -1.5 * Q2 * pressure * inverse_sM;
   sinh_tmp1 = sinh(tmp1);
-  lambda_increment = 0.5 * yieldstress_undamaged * plastic_strain_increment * (1 - f) / (vm * vm * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
-  
-  fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * vm * inverse_sM);
-  
+  // 计算增量塑性乘子 lambda_increment
+  lambda_increment = 0.5 * yieldstress_undamaged * plastic_strain_increment * (1 - f) 
+  / (vm * vm * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
+  // 计算空洞增长率增量
+  fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 
+  + Komega * omega * 2 * vm * inverse_sM);
+  // 如果计算结果出现 NaN，则输出调试信息
   if (isnan(fs_increment) || isnan(-fs_increment)) {
     printf("GTN f increment: %.10e\n", fs_increment);
     cout << "vm = " << vm << "\t";
@@ -748,17 +756,19 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
     cout << "tmp1 = " << tmp1 << endl;
     cout << "f = " << f << endl;
     cout << "omega = " << omega << endl;
-    cout << "F = " << vm * vm * inverse_sM * inverse_sM + 2 * Q1 * f * cosh(tmp1) - (1 + Q1 * Q1 * f * f) << endl;
+    cout << "F = " << vm * vm * inverse_sM * inverse_sM + 2 * Q1 * f * cosh(tmp1)
+    - (1 + Q1 * Q1 * f * f) << endl;
     cout << "plastic_strain_increment = " << plastic_strain_increment << endl;
   }
-  
+  // 如果空洞增长率增量小于0，则设为0
   if (fs_increment < 0.0) fs_increment = 0.0;
-  
-  
+  // 总的空洞体积分数增量为成核增长率增量和空洞增长率增量之和
   double f_increment = fn_increment + fs_increment;
+  // 如果计算结果出现 NaN，则输出调试信息
   if (isnan(f_increment) || isnan(-f_increment)){
     cout << "fs_increment = " << fs_increment << "\t" << "fn_increment = " << fn_increment << endl;
   }
+  // 返回归一化的空洞体积分数增量
   return f_increment / fcr;
 }
 
@@ -771,27 +781,35 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
 
 
  ------------------------------------------------------------------------- */
-
+// 定义函数来计算Cockcroft-Latham损伤增量
 double CockcroftLathamDamageIncrement(const Matrix3d S, const double W, const double plastic_strain_increment) {
-
+// 检查塑性应变增量是否大于0，如果不大于0，直接返回0
   if (plastic_strain_increment > 0.0) {
     // Principal stress:
+    // 创建EigenSolver对象用于计算应力矩阵的特征值和特征向量
     EigenSolver<Matrix3d> ES;
+    //计算特征值和特征向量
     ES.compute(S); // Compute eigenvalues and eigenvectors
+    //获取实部特征值向量
     Vector3d Lambda = ES.eigenvalues().real(); // Vector of eigenvalues (real).
+    //获取特征值绝对值的向量
     Vector3d Lambda_abs = ES.eigenvalues().real().cwiseAbs(); // Vector of the absolute value of eigenvalues (real).
+    //获取特征值中的最大值
     double Lambda_max = Lambda.maxCoeff();
-
+    //检查最大特征值是否为正
     if (Lambda_max == Lambda_abs.maxCoeff()) {
-      // The principal stress is positive
+      // The principal stress is positive如果最大特征值为正，则计算并返回损伤增量
+      //损伤增量 = 最大主应力 * 塑性应变增量 / 材料强度
       //printf("Lambda = [%.10e %.10e %.10e], Lambda_max = %.10e, plastic_strain_increment / W = %.10e, damage_increment = %.10e\n", Lambda[0], Lambda[1], Lambda[2], Lambda_max, plastic_strain_increment / W,Lambda_max * plastic_strain_increment / W);
       return Lambda_max * plastic_strain_increment / W;
     } else {
+      // 如果最大特征值为负，则返回0，因为负的主应力不产生损伤
       //printf("Lambda = [%.10e %.10e %.10e], damage_increment = 0\n", Lambda[0], Lambda[1], Lambda[2]);
       // The principal stress is negative
       return 0;
     }
   } else {
+    // 如果塑性应变增量不大于0，则直接返回0
     return 0;
   }
 }
