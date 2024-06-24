@@ -69,7 +69,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 		Pair(lmp) {
 	//粒子半径或相关属性有关的指针
 	onerad_dynamic = onerad_frozen = maxrad_dynamic = maxrad_frozen = NULL;
-	//材料的失效模型、强度模型和状态方程（Equation of State）有关的对象指针
+	//材料的失效模型、强度模型和 状态方程（Equation of State）有关的对象指针
 	failureModel = NULL;
 	strengthModel = eos = NULL;
 
@@ -177,6 +177,8 @@ PairTlsph::~PairTlsph() {
 /* ----------------------------------------------------------------------
  * use half neighbor list to re-compute shape matrix
  * 使用半邻居列表重新计算形状矩阵
+ * 在compute函数中调用了这个函数
+ * 计算到论文中d_i,即消除刚体旋转分量的应变率
  ---------------------------------------------------------------------- */
 void PairTlsph::PreCompute() {
     // 原子属性和变量初始化
@@ -239,19 +241,19 @@ void PairTlsph::PreCompute() {
         // 计算作用范围的直径
         h = 2.0 * radius[i];
 			// 调用spiky_kernel_and_derivative函数计算核函数及其导数
-			spiky_kernel_and_derivative(h, 0.0, domain->dimension, wf, wfd);//传入核函数及其导数
+			spiky_kernel_and_derivative(h, 0.0, domain->dimension, wf, wfd);//获取核函数wf及其导数wfd
 			//获取作用范围内的原子数量
 			jnum = npartner[i];//作用范围内的原子数量
 			// 获取原子半径和体积分数
 			irad = radius[i];//作用半径
 			voli = vfrac[i];//体积
 			// 计算shepardWeight
-			shepardWeight = wf * voli;//核函数乘体积
+			shepardWeight = wf * voli;//核函数乘以粒子i的体积，这是干嘛用的，论文里也没有这块啊
 			// 从LAMMPS数据结构中初始化Eigen数据结构
 			// initialize Eigen data structures from LAMMPS data structures
 			for (idim = 0; idim < 3; idim++) {
-				xi(idim) = x[i][idim];
-				x0i(idim) = x0[i][idim];
+				xi(idim) = x[i][idim];//可能是粒子i的更新后坐标
+				x0i(idim) = x0[i][idim];//可能是粒子i的参考坐标
 				vi(idim) = v[i][idim];
 				vinti(idim) = vint[i][idim];
 			}
@@ -266,7 +268,7 @@ void PairTlsph::PreCompute() {
 
 				// if (degradation_ij[i][jj] >= 1.0) continue;
 				// 映射相邻原子的索引到原子数组中的索引		
-				j = atom->map(partner[i][jj]);
+				j = atom->map(partner[i][jj]);//获取原子i的第jj个邻居原子的原子id
 				// 如果返回的索引小于0，表示出现错误，输出错误信息并终止程序
 				if (j < 0) { //			// check if lost a partner without first breaking bond
 				  printf("Link between %d and %d destroyed without first breaking bond! Damage level in the link was: %f\n", tag[i], partner[i][jj], degradation_ij[i][jj]);
@@ -286,25 +288,25 @@ void PairTlsph::PreCompute() {
 				x0j(0) = x0[j][0]; // 将原子j的参考位置x坐标从LAMMPS数据结构转换为Eigen数据结构
 				x0j(1) = x0[j][1]; // 将原子j的参考位置y坐标从LAMMPS数据结构转换为Eigen数据结构
 				x0j(2) = x0[j][2]; // 将原子j的参考位置z坐标从LAMMPS数据结构转换为Eigen数据结构
-				dx0 = x0j - x0i; // 计算原子i和j在参考配置下的距离向量
+				dx0 = x0j - x0i; // 计算原子i和j在参考配置下的距离向量，即对应论文中的X_ij
 
 				// initialize Eigen data structures from LAMMPS data structures
 				xj(0) = x[j][0];
 				xj(1) = x[j][1];
 				xj(2) = x[j][2];
-				dx = xj - xi;   //变化后的两个原子之间的距离向量
+				dx = xj - xi;   //变化后的两个原子之间的距离向量,对应论文中x_ij
 
 				// initialize Eigen data structures from LAMMPS data structures
 				vj(0) = v[j][0];
 				vj(1) = v[j][1];
 				vj(2) = v[j][2];
-				dv = vj - vi;//计算原子i和j的速度差
+				dv = vj - vi;//计算原子i和j的速度差,对应论文中v_ij
 
 				// initialize Eigen data structures from LAMMPS data structures
 				vintj(0) = vint[j][0];
 				vintj(1) = vint[j][1];
 				vintj(2) = vint[j][2];
-				dvint = vintj - vinti;//计算原子i和j的瞬时速度差
+				dvint = vintj - vinti;//计算原子i和j的瞬时速度差，和dv有什么区别
 
 				volj = vfrac[j];//获取原子j的体积分数
 
@@ -335,8 +337,8 @@ void PairTlsph::PreCompute() {
 				vijSq_max[i] = MAX(dvint.squaredNorm(), vijSq_max[i]);
 
 				vwf = volj * wf_list[i][jj];// 可能代表体积加权因子
-				g = volj * g_list[i][jj]; // 可能代表形变梯度的加权因子   
-				//虚拟原子 这两个权重分别代表什么？？？
+				g = volj * g_list[i][jj]; // 可能代表形变梯度的加权因子   ？
+				//虚拟原子 
 
 				/* build matrices */;
 				//（8）更新变形矩阵的导数
@@ -381,10 +383,10 @@ void PairTlsph::PreCompute() {
 				}
 			}
 
-			detF[i] = Fincr[i].determinant();
+			detF[i] = Fincr[i].determinant();//这是一个用于计算矩阵行列式的方法。行列式是一个标量值，反映了矩阵是否可逆以及矩阵变换的尺度因子。例如，对于变形梯度矩阵，行列式等于1表示体积不变，行列式大于1表示体积膨胀，而小于1则表示体积压缩。
 			FincrInv[i] = Fincr[i].inverse();//计算了变形梯度增量的逆矩阵
 			// velocity gradient 速度梯度
-			L = Fdot[i] * FincrInv[i];
+			L = Fdot[i] * FincrInv[i];//对应论文中的L_i
 
 			// symmetric (D) and asymmetric (W) parts of L "L 的对称部分 (D) 和非对称部分 (W)"
 			D[i] = 0.5 * (L + L.transpose());//求应变率 论文伪代码22行
@@ -399,7 +401,7 @@ void PairTlsph::PreCompute() {
 			// stress in the true frame of reference (a stationary observer) is denoted by T, "true stress"
 			//在真实的参考坐标系中的应力（一个静止的观察者）用 ( T ) 表示，“真实应力”。
 			//消除刚体旋转分量的应变率
-			D[i] = (R[i].transpose() * D[i] * R[i]).eval();
+			D[i] = (R[i].transpose() * D[i] * R[i]).eval();//论文中伪代码24行
 
 			// limit strain rate 极限应变率
 			//double limit = 1.0e-3 * Lookup[SIGNAL_VELOCITY][itype] / radius[i];
@@ -439,7 +441,7 @@ void PairTlsph::PreCompute() {
 }
 
 /* ---------------------------------------------------------------------- */
-
+//调用总结其他函数
 void PairTlsph::compute(int eflag, int vflag) {
 
 	if (atom->nmax > nmax) {
@@ -489,6 +491,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 	}
 
 	if (first) { // return on first call, because reference connectivity lists still needs to be built. Also zero quantities which are otherwise undefined.
+	  			//在第一次调用时返回，因为仍需建立引用连接列表。此外，也会将其他未定义的量归零。
 		first = false;
 
 		for (int i = 0; i < atom->nlocal; i++) {
@@ -512,24 +515,24 @@ void PairTlsph::compute(int eflag, int vflag) {
 	fix_tlsph_reference_configuration->forward_comm_tl();
 
 	/*
-	 * calculate deformations and rate-of-deformations
+	 * calculate deformations and rate-of-deformations 计算形变和形变率
 	 */
 	PairTlsph::PreCompute();
 
 	/*
-	 * calculate stresses from constitutive models
+	 * calculate stresses from constitutive models 根据本构模型计算应力 计算出了PK1
 	 */
 	PairTlsph::AssembleStress();
 
 	/*
-	 * QUANTITIES ABOVE HAVE ONLY BEEN CALCULATED FOR NLOCAL PARTICLES.
-	 * NEED TO DO A FORWARD COMMUNICATION TO GHOST ATOMS NOW
+	 * QUANTITIES ABOVE HAVE ONLY BEEN CALCULATED FOR NLOCAL PARTICLES.上述量仅对 n 个局部粒子进行了计算。
+	 * NEED TO DO A FORWARD COMMUNICATION TO GHOST ATOMS NOW 现在需要对幽灵原子进行转发通信
 	 */
 	comm->forward_comm_pair(this);
 	forward_comm_pair_tl();
 
 	/*
-	 * compute forces between particles
+	 * compute forces between particles 计算粒子间的作用力
 	 */
 	updateFlag = 0;
 	ComputeForces(eflag, vflag);
@@ -593,7 +596,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		evflag = vflag_fdotr = 0;//// 否则将标志位设置为0
 
 	/*
-	 * iterate over pairs of particles i, j and assign forces using PK1 stress tensor
+	 * iterate over pairs of particles i, j and assign forces using PK1 stress tensor 遍历粒子对 i、j，并使用 PK1 应力张量分配力
 	 */
 
 	//updateFlag = 0;
@@ -683,12 +686,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 			// 对力的贡献进行计算，根据损伤情况和PK1张量的情况进行不同的处理
 			if (damage[i] < 1.0 && damage[j] < 1.0) {
-			  if (damage[i] > 0.0 || damage[j] > 0.0) {
-			    f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g;
-			  } else {
-			    f_stress = -(voli * volj) * (PK1[j] + PK1[i]) * g;
+			  if (damage[i] > 0.0 || damage[j] > 0.0) {//至少有1个粒子存在损伤，则需要调整传递的应力
+			    f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g; //论文中伪代码第35行
+			  } else {//如果两个粒子都没有损伤，则不需要调整传递的应力
+			    f_stress = -(voli * volj) * (PK1[j] + PK1[i]) * g;//论文中伪代码第35行
 			  }
-			} else {
+			} else {//如果存在一个粒子完全损伤，则传递的应力为0
 			  f_stress.setZero();
 			}
 
@@ -806,7 +809,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			deltaE = sumForces.dot(dv);
 
 			// apply forces to pair of particles
-			// 更新力数组 f 的第 i 项
+			// 更新力数组 f 的第 i 项 论文中伪代码36行
 			f[i][0] += sumForces(0);  // 更新 x 方向的力
 			f[i][1] += sumForces(1);  // 更新 y 方向的力
 			f[i][2] += sumForces(2);  // 更新 z 方向的力
@@ -883,6 +886,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
  shape matrix correction
 使用去除旋转的应变率和压力分量组装无旋转应力张量。
 将其转换为共旋应力张量，然后转换为PK1应力，并应用形状矩阵校正。
+在compute函数中被调用
  ------------------------------------------------------------------------- */
 void PairTlsph::AssembleStress() {
 	tagint *mol = atom->molecule;
@@ -923,7 +927,7 @@ void PairTlsph::AssembleStress() {
 				 * initial stress state: given by the unrotateted Cauchy stress.
 				 * Assemble Eigen 3d matrix from stored stress state
 				 */
-				// 组装初始应力矩阵sigmaInitial
+				// 组装初始应力矩阵sigmaInitial 对称矩阵
 				sigmaInitial(0, 0) = tlsph_stress[i][0];
 				sigmaInitial(0, 1) = tlsph_stress[i][1];
 				sigmaInitial(0, 2) = tlsph_stress[i][2];
@@ -936,9 +940,9 @@ void PairTlsph::AssembleStress() {
 
 				//cout << "this is sigma initial" << endl << sigmaInitial << endl;
 
-				pInitial = sigmaInitial.trace() / 3.0; // isotropic part of initial stress
-				sigmaInitial_dev = Deviator(sigmaInitial);
-				d_iso = D[i].trace(); // volumetric part of stretch rate拉伸率的体积部分 论文伪代码中24行
+				pInitial = sigmaInitial.trace() / 3.0; // isotropic part of initial stress 初始应力的各向同性部分 ，对称应力张量的迹除以3可以得到平均应力的值。
+				sigmaInitial_dev = Deviator(sigmaInitial);//偏差应力是用于描述应力状态中的剪切部分，而不包括体积变化部分的应力分量。
+				d_iso = D[i].trace(); // volumetric part of stretch rate拉伸率的体积部分 
 				d_dev = Deviator(D[i]); // deviatoric part of stretch rate拉伸率的偏差部分
 				Matrix3d FtF = Fincr[i].transpose() * Fincr[i];// 增量变形梯度的转置乘以自身
 				strain = 0.5 * (FtF - eye);// 应变张量
@@ -959,7 +963,7 @@ void PairTlsph::AssembleStress() {
 				 */
 
 				//cout << "this is the strain deviator rate" << endl << d_dev << endl;
-				// 计算应力偏量（deviatoric stress），这是一个与体积变形无关的应力分量
+				// 计算偏差应力（deviatoric stress），这是一个与体积变形无关的应力分量，注意：偏差应力和剪应力是不同的量
 				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, pInitial, pFinal);
 				//cout << "this is the stress deviator rate" << endl << sigma_dev_rate << endl;
 
@@ -1020,7 +1024,7 @@ void PairTlsph::AssembleStress() {
      * 应力是未旋转的应力。
      * 需要将未旋转的应力前向旋转到当前配置。
      */
-					T = R[i] * sigmaFinal * R[i].transpose();
+					T = R[i] * sigmaFinal * R[i].transpose(); //论文中伪代码27行
 				}
 
 				/*
@@ -1054,16 +1058,16 @@ void PairTlsph::AssembleStress() {
 				 */
 				//柯西应力转换为pk1
 				
-				PK1[i] = detF[i] * T * FincrInv[i].transpose();
+				PK1[i] = detF[i] * T * FincrInv[i].transpose();//论文中伪代码28行
 
 				/*
 				 * pre-multiply stress tensor with shape matrix to save computation in force loop
 				 将应力张量与形状矩阵预乘，以节省力循环中的计算量
 				 */
-				PK1[i] = PK1[i] * K[i].transpose();
+				PK1[i] = PK1[i] * K[i].transpose();//论文中伪代码35行的一部分
 
 				/*
-				 * compute stable time step according to Pronto 2d
+				 * compute stable time step according to Pronto 2d 根据 Pronto 2d 计算稳定时间步长
 				 */
 
 				deltaSigma = sigmaFinal - sigmaInitial;
@@ -2507,6 +2511,7 @@ void PairTlsph::unpack_forward_comm(int n, int first, double *buf) {
  compute effective P-wave speed
  determined by longitudinal modulus
  计算有效的P波速度，由纵向模量决定
+ 在AssembleStress（）被调用
  ------------------------------------------------------------------------- */
 
 void PairTlsph::effective_longitudinal_modulus(const int itype, const double dt, const double d_iso, const double p_rate,
@@ -2947,18 +2952,19 @@ void PairTlsph::UpdateDegradation() {
 			smoothVelDifference[i].setZero();
 			damage_increment[i] = 0.0;
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
+			          // 粒子 i 不再是有效的 SPH 粒子。跳过与该粒子的所有相互作用。
 		}
 
 		itype = type[i];
 		
-		if (failureModel[itype].failure_none) { // Do not update degradation if no failure mode is activated for the mol.
+		if (failureModel[itype].failure_none) { // Do not update degradation if no failure mode is activated for the mol.如果 mol 没有激活故障模式，则不要更新降级。
 		  continue;
 		}
 
 		itype = type[i];
 		jnum = npartner[i];
 
-		// initialize aveage mass density
+		// initialize aveage mass density 初始化平均质量密度
 		h = 2.0 * radius[i];
 		r = 0.0;
 		if (failureModel[itype].failure_max_pairwise_strain || failureModel[itype].integration_point_wise) {
@@ -2972,7 +2978,7 @@ void PairTlsph::UpdateDegradation() {
 			// if (degradation_ij[i][jj] >= 1.0)
 			// 	continue;
 			j = atom->map(partner[i][jj]);
-			if (j < 0) { //			// check if lost a partner without first breaking bond
+			if (j < 0) { //			// check if lost a partner without first breaking bond 检查是否在未断绝关系的情况下失去伴侣
 			  error->all(FLERR, "Bond broken not detected during PreCompute -3!");
 			  continue;
 			}

@@ -41,7 +41,7 @@ class ComputeSMDDamage : public Compute {
   ComputeSMDDamage(class LAMMPS *, int, char **);
   ~ComputeSMDDamage();
   void init();
-  void compute_peratom();
+  void compute_peratom(); //计算原子的某种特征，这里可能是损伤情况
   double memory_usage();
 
  private:

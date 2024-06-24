@@ -38,7 +38,7 @@
 using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
-
+//构造函数
 ComputeSMDDamage::ComputeSMDDamage(LAMMPS *lmp, int narg, char **arg) :
   Compute(lmp, narg, arg)
 {
@@ -53,14 +53,14 @@ ComputeSMDDamage::ComputeSMDDamage(LAMMPS *lmp, int narg, char **arg) :
 }
 
 /* ---------------------------------------------------------------------- */
-
+//析构函数
 ComputeSMDDamage::~ComputeSMDDamage()
 {
   memory->sfree(damage_vector);
 }
 
 /* ---------------------------------------------------------------------- */
-
+//初始化
 void ComputeSMDDamage::init()
 {
 
