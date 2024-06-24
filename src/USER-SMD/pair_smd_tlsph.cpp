@@ -3010,7 +3010,7 @@ void PairTlsph::UpdateDegradation() {
 			  h = radius[i] + radius[j];
 			  r0_ = r0[i][jj];
 
-			  // distance vectors in current and reference configuration, velocity difference
+			  // distance vectors in current and reference configuration, velocity difference 当前配置和参考配置的距离矢量、速度差
 			  dx = xj - xi;
 			  r = dx.norm(); // current distance
 
@@ -3019,8 +3019,12 @@ void PairTlsph::UpdateDegradation() {
 			  softening_strain = 2.0 * strain1d_max;
 
 			  if (strain1d > strain1d_max) {
+				 // 如果当前应变超过了最大允许应变：
 			    degradation_ij[i][jj] = max(degradation_ij[i][jj], float((strain1d - strain1d_max) / softening_strain));
+				// 更新降解值：选择当前降解值和计算出的新降解值中的较大者。
+    			// 新降解值是通过（当前应变 - 最大应变）/ 软化应变计算得出的。
 			    if (degradation_ij[i][jj] >= 0.99) {
+				  // 如果降解值达到或超过0.99，认为连接已被破坏：
 			      printf("Link between %d and %d destroyed.\n", tag[i], partner[i][jj]);
 			      cout << "Here is dx0:" << endl << dx0 << endl;
 			      degradation_ij[i][jj] = 0.99;
@@ -3028,9 +3032,11 @@ void PairTlsph::UpdateDegradation() {
 			    //degradation_ij[i][jj] = (strain1d - strain1d_max) / softening_strain;
 			  } else {
 			    //degradation_ij[i][jj] = 0.0;
+				// 如果当前应变没有超过最大允许应变：
+    			// 降解值保持为0.0（假设的注释行为）。
 			  }
 			}
-
+			//根据能量释放速率来判断材料连接的破坏情况
 			if (failureModel[itype].failure_energy_release_rate) {
 			  
 				h = radius[i] + radius[j];
