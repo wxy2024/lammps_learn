@@ -50,7 +50,7 @@ using namespace LAMMPS_NS;
 /*pair_smd_hertz是一种用于描述基于Hertz接触力模型的分子间力的势函数，通常用于描述颗粒之间的力学相互作用。
 Hertz接触力模型基于弹性理论，用于描述在颗粒之间的碰撞和接触时的力学行为。*/
 /* ---------------------------------------------------------------------- */
-
+//构造函数
 PairHertz::PairHertz(LAMMPS *lmp) :
                 Pair(lmp) {
 
@@ -61,7 +61,7 @@ PairHertz::PairHertz(LAMMPS *lmp) :
 }
 
 /* ---------------------------------------------------------------------- */
-
+//析构函数
 PairHertz::~PairHertz() {
 
         if (allocated) {
