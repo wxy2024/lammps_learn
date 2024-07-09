@@ -120,7 +120,7 @@ void PairHertz::compute(int eflag, int vflag) {
                 xtmp = x[i][0];
                 ytmp = x[i][1];
                 ztmp = x[i][2];
-                itype = type[i];
+                itype = type[i];//原子的类型用一个int型变量表示，类型代表什么？
                 ri = scale * radius[i];
                 jlist = firstneigh[i];
                 jnum = numneigh[i];
@@ -129,19 +129,19 @@ void PairHertz::compute(int eflag, int vflag) {
                         j = jlist[jj];
                         j &= NEIGHMASK;
 
-                        jtype = type[j];
+                        jtype = type[j];//原子的类型用一个int型变量表示，类型代表什么？
 
-                        delx = xtmp - x[j][0];//计算位移
+                        delx = xtmp - x[j][0];//粒子对之间的距离
                         dely = ytmp - x[j][1];
                         delz = ztmp - x[j][2];
 
                         rsq = delx * delx + dely * dely + delz * delz;//距离的平方
 
                         rj = scale * radius[j];
-                        rcut = ri + rj;
+                        rcut = ri + rj;//设定的作用范围
                         rcutSq = rcut * rcut;
 
-                        if (rsq < rcutSq) {
+                        if (rsq < rcutSq) {//粒子对之间可以相互作用
 
                                 /*
                                  * self contact option:
@@ -151,20 +151,20 @@ void PairHertz::compute(int eflag, int vflag) {
                                  * 如果不对参考配置进行更新，这种方法应该会很有效。
                                  */
 
-                                if (itype == jtype) {
+                                if (itype == jtype) {//如果属于同一类型
                                         delx0 = x0[j][0] - x0[i][0];
                                         dely0 = x0[j][1] - x0[i][1];
                                         delz0 = x0[j][2] - x0[i][2];
-                                        if (periodic) {
-                                                domain->minimum_image(delx0, dely0, delz0);
+                                        if (periodic) {// 如果启用周期性边界条件
+                                                domain->minimum_image(delx0, dely0, delz0);// 调用函数进行最小图像处理 ？？
                                         }
                                         rSq0 = delx0 * delx0 + dely0 * dely0 + delz0 * delz0; // initial distance
-                                        sphCut = sph_radius[i] + sph_radius[j];
-                                        if (rSq0 < sphCut * sphCut) {
-                                                rcut = 0.5 * rcut;
-                                                rcutSq = rcut * rcut;
-                                                if (rsq > rcutSq) {
-                                                        continue;
+                                        sphCut = sph_radius[i] + sph_radius[j]; // 计算两个粒子（或原子）的球形截断半径之和
+                                        if (rSq0 < sphCut * sphCut) { // 如果初始距离的平方小于球形截断半径的平方
+                                                rcut = 0.5 * rcut;// 将截断半径 rcut 减半
+                                                rcutSq = rcut * rcut;// 计算新的截断半径的平方
+                                                if (rsq > rcutSq) {// 如果实际距离的平方大于新的截断半径的平方
+                                                        continue;// 继续下一个循环（跳过后续的代码，进行下一次迭代）
                                                 }
                                         }
                                 }
@@ -223,7 +223,7 @@ void PairHertz::compute(int eflag, int vflag) {
 }
 
 /* ----------------------------------------------------------------------
- allocate all arrays
+ allocate all arrays 分配所有数组
  ------------------------------------------------------------------------- */
 
 void PairHertz::allocate() {
@@ -265,7 +265,7 @@ void PairHertz::settings(int narg, char **arg) {
 }
 
 /* ----------------------------------------------------------------------
- set coeffs for one or more type pairs
+ set coeffs for one or more type pairs 为一个或多个类型对设置系数
  ------------------------------------------------------------------------- */
 
 void PairHertz::coeff(int narg, char **arg) {
