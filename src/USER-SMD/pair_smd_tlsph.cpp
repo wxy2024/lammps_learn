@@ -58,7 +58,7 @@ using namespace SMD_Math;
 
 #define JAUMANN false
 #define DETF_MIN 0.002 // maximum compression deformation allow最大压缩变形量
-#define DETF_MAX 200.0 // maximum tension deformation allowed允许的最大拉伸变形 单位时间步长限制
+#define DETF_MAX 200.0 // maximum tension deformation allowed允许的最大拉伸变形 单位时间步长内的限制
 #define TLSPH_DEBUG 0
 #define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
 #define BUFEXTRA 1000
@@ -188,7 +188,7 @@ void PairTlsph::PreCompute() {
 	double **x0 = atom->x0;  // 原子初始位置数组
 	double **x = atom->x;  // 原子当前位置数组
 	double **v = atom->vest;  // 当前位置对应的外推速度数组
-	double **vint = atom->v;  // Velocity-Verlet算法速度数组 时间步长的算法先关
+	double **vint = atom->v;  // Velocity-Verlet算法速度数组 时间步长的算法相关
 	double *damage = atom->damage;  // 原子受损程度数组
 	tagint *tag = atom->tag;  // 原子标签数组
 	int *type = atom->type;  // 原子类型数组

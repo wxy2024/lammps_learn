@@ -106,6 +106,7 @@ void PairHertz::compute(int eflag, int vflag) {
 
         int newton_pair = force->newton_pair;
         int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
+           //周期性边界条件
 
         inum = list->inum;
         ilist = list->ilist;
@@ -120,8 +121,8 @@ void PairHertz::compute(int eflag, int vflag) {
                 xtmp = x[i][0];
                 ytmp = x[i][1];
                 ztmp = x[i][2];
-                itype = type[i];//原子的类型用一个int型变量表示，类型代表什么？
-                ri = scale * radius[i];
+                itype = type[i];//原子的类型用一个int型变量表示，类型代表in文件中原子类型号吗？
+                ri = scale * radius[i]; //这是啥？scale是啥？
                 jlist = firstneigh[i];
                 jnum = numneigh[i];
 
@@ -137,11 +138,11 @@ void PairHertz::compute(int eflag, int vflag) {
 
                         rsq = delx * delx + dely * dely + delz * delz;//距离的平方
 
-                        rj = scale * radius[j];
-                        rcut = ri + rj;//设定的作用范围
-                        rcutSq = rcut * rcut;
+                        rj = scale * radius[j];//这也有一个scale,是什么东西？
+                        rcut = ri + rj;//两个粒子的半径的和
+                        rcutSq = rcut * rcut;//半径和的平方
 
-                        if (rsq < rcutSq) {//粒子对之间可以相互作用
+                        if (rsq < rcutSq) {//粒子对之间在距离上互相接触
 
                                 /*
                                  * self contact option:
@@ -151,17 +152,17 @@ void PairHertz::compute(int eflag, int vflag) {
                                  * 如果不对参考配置进行更新，这种方法应该会很有效。
                                  */
 
-                                if (itype == jtype) {//如果属于同一类型
+                                if (itype == jtype) {//如果属于同一类型的原子   所以说，如果是同一种类型的原子互相挤压，可能会融合是这意思不？
                                         delx0 = x0[j][0] - x0[i][0];
                                         dely0 = x0[j][1] - x0[i][1];
-                                        delz0 = x0[j][2] - x0[i][2];
+                                        delz0 = x0[j][2] - x0[i][2];//计算初始坐标下的原子对之间的距离
                                         if (periodic) {// 如果启用周期性边界条件
                                                 domain->minimum_image(delx0, dely0, delz0);// 调用函数进行最小图像处理 ？？
                                         }
-                                        rSq0 = delx0 * delx0 + dely0 * dely0 + delz0 * delz0; // initial distance
+                                        rSq0 = delx0 * delx0 + dely0 * dely0 + delz0 * delz0; // initial distance 初始坐标原子对之间距离的平方
                                         sphCut = sph_radius[i] + sph_radius[j]; // 计算两个粒子（或原子）的球形截断半径之和
                                         if (rSq0 < sphCut * sphCut) { // 如果初始距离的平方小于球形截断半径的平方
-                                                rcut = 0.5 * rcut;// 将截断半径 rcut 减半
+                                                rcut = 0.5 * rcut;//将截断半径 rcut 减半 ？？？啥意思，就是让两个粒子各自缩小一半？还是两个粒子融合成一个？
                                                 rcutSq = rcut * rcut;// 计算新的截断半径的平方
                                                 if (rsq > rcutSq) {// 如果实际距离的平方大于新的截断半径的平方
                                                         continue;// 继续下一个循环（跳过后续的代码，进行下一次迭代）
@@ -169,12 +170,12 @@ void PairHertz::compute(int eflag, int vflag) {
                                         }
                                 }
 
-                                r = sqrt(rsq);
+                                r = sqrt(rsq);//r是原子对之间的距离
                                 //printf("hertz interaction, r=%f, cut=%f, h=%f\n", r, rcut, sqrt(rSq0));
                                 //赫兹相互作用
                                 // Hertzian short-range forces
-                                delta = rcut - r; // overlap distance重叠距离
-                                r_geom = ri * rj / rcut;
+                                delta = rcut - r; // overlap distance重叠距离  =两个粒子的半径的和-原子对之间的距离
+                                r_geom = ri * rj / rcut;//半径的积除以半径的和，这是啥
                                 //assuming poisson ratio = 1/4 for 3d
                                 //fpair表示粒子间的力，根据公式计算得到。
                                 //其中，bulkmodulus[itype][jtype]是材料的体积模量，
@@ -187,7 +188,8 @@ void PairHertz::compute(int eflag, int vflag) {
                                 //这个时间步长用于稳定性分析，确保模拟过程中的时间步不至于过大导致数值不稳定。
                                 stable_time_increment = MIN(stable_time_increment, dt_crit);
                                 if (r > 2.0e-16) {
-                                        fpair /= r; // divide by r and multiply with non-normalized distance vector除以 r，再乘以非标准化距离向量
+                                        fpair /= r; // divide by r and multiply with non-normalized distance vector
+                                                    //除以 r，再乘以非标准化距离向量
                                 } else {
                                         fpair = 0.0;
                                 }
@@ -195,6 +197,8 @@ void PairHertz::compute(int eflag, int vflag) {
                                 /*
                                  * contact viscosity -- needs to be done, see GRANULAR package for normal & shear damping
                                  * for now: no damping and thus no viscous energy deltaE
+                                 * 接触粘性--需要完成，参见 GRANULAR 软件包中的法向和剪切阻尼  
+                                 * 目前：无阻尼，因此无粘性能量 deltaE 
                                  */
 
                                 if (evflag) {
@@ -203,7 +207,7 @@ void PairHertz::compute(int eflag, int vflag) {
 
                                 f[i][0] += delx * fpair;
                                 f[i][1] += dely * fpair;
-                                f[i][2] += delz * fpair;
+                                f[i][2] += delz * fpair;//节点力积分？
 
                                 if (newton_pair || j < nlocal) {
                                         f[j][0] -= delx * fpair;
